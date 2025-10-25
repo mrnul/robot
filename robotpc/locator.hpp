@@ -26,6 +26,7 @@ struct LocatorParams
 	float d;
 	float sw;
 	float sh;
+	bool helper;
 };
 
 class Locator
@@ -52,8 +53,23 @@ private:
 	cv::Vec2f _image_plane_xy;
 	cv::Vec3f _image_plane_xyz;
 	cv::Vec3f _real_xyz;
+	vector<vector<cv::Point>> _contours;
 
 	time_point<high_resolution_clock> time;
+	
+
+private:
+	float fps;
+
+	int low_h;
+	int low_s;
+	int low_v;
+
+	int high_h;
+	int high_s;
+	int high_v;
+
+
 public:
 	Locator(const LocatorParams params) :
 		params(params),
@@ -68,6 +84,18 @@ public:
 		videoCapture.open(0, cv::CAP_ANY);
 		videoCapture.set(cv::CAP_PROP_FRAME_WIDTH, params.width);
 		videoCapture.set(cv::CAP_PROP_FRAME_HEIGHT, params.height);
+
+		if (params.helper)
+		{
+			cv::namedWindow("Helper", cv::WINDOW_AUTOSIZE);
+			cv::createTrackbar("Low H", "Helper", &low_h, 255);
+			cv::createTrackbar("Low S", "Helper", &low_s, 255);
+			cv::createTrackbar("Low V", "Helper", &low_v, 255);
+
+			cv::createTrackbar("High H", "Helper", &high_h, 255);
+			cv::createTrackbar("High S", "Helper", &high_s, 255);
+			cv::createTrackbar("High V", "Helper", &high_v, 255);
+		}
 	}
 
 	bool new_frame(const bool blur = true)
@@ -83,17 +111,28 @@ public:
 	const cv::Vec2f& locate_pixel_xy(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv)
 	{
 		cv::inRange(_hsv_frame, lower_hsv, upper_hsv, _frame_threshold);
-		cv::Moments m = cv::moments(_frame_threshold);
-
-		if (m.m00 == 0.0)
-		{
-			_pixel_xy = NotFound2fC;
+		cv::findContours(_frame_threshold, _contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
+		
+		double max_area = 0;
+		int largest_contour = -1;
+		for (int i = 0; i < _contours.size(); i++) {
+			const double area = cv::contourArea(_contours[i]);
+			if (area > max_area) {
+				max_area = area;
+				largest_contour = i;
+			}
 		}
-		else
+
+		if (largest_contour >= 0)
 		{
+			cv::Moments m = cv::moments(_contours[largest_contour], true);
 			_pixel_xy[0] = float(m.m10 / m.m00);
 			_pixel_xy[1] = float(m.m01 / m.m00);
 		}
+		else {
+			_pixel_xy = NotFound2fC;
+		}
+
 		return _pixel_xy;
 	}
 
@@ -137,6 +176,7 @@ public:
 		cv::cvtColor(hsvAvgColor, bgrAvgColor, cv::COLOR_HSV2BGR);
 		const cv::Vec3b& avg_color = bgrAvgColor[0][0];
 		add_circle(_pixel_xy, avg_color);
+		cv::drawContours(_frame, _contours, -1, avg_color, 5);
 
 		pixel_xy_to_image_plane_xy(_pixel_xy);
 		add_text(_pixel_xy + cv::Vec2f(0, 0), "ip: (" + to_string(_image_plane_xy[0]) + ", " + to_string(_image_plane_xy[1]) + ")", avg_color);
@@ -193,13 +233,19 @@ public:
 		);
 	}
 
-	void print(const bool mark_screen_center = true, const bool mark_horizon = true, const bool fps = true)
+	void print(const bool mark_screen_center = true, const bool mark_horizon = true, const bool show_fps = true)
 	{
-		if (fps)
+		if (params.helper)
 		{
+			locate_mark_and_get(cv::Vec3b(low_h, low_s, low_v), cv::Vec3b(high_h, high_s, high_v));
+		}
+		if (show_fps)
+		{
+			const float lambda = 0.1f;
 			const float seconds = (high_resolution_clock::now() - time).count() * 1e-9f;
 			const float frames_per_second = 1.f / seconds;
-			add_text(cv::Point2f(5, 50), "FPS: " + to_string(frames_per_second), cv::Vec3i(255, 255, 255));
+			fps = frames_per_second * lambda + (1.f - lambda) * fps;
+			add_text(cv::Point2f(5, 50), "FPS: " + to_string(fps), cv::Vec3i(255, 255, 255));
 			time = high_resolution_clock::now();
 		}
 		if (mark_screen_center)

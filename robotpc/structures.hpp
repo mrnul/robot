@@ -10,33 +10,6 @@ using std::chrono::time_point;
 using std::chrono::duration;
 using std::chrono::high_resolution_clock;
 
-
-class Data
-{
-private:
-	const int uid = 1002;
-	const float vr = 0.0f;
-	const float vl = 0.0f;
-
-	array<unsigned char, 12> bytes = { 0 };
-
-	void to_bytes()
-	{
-		memcpy(bytes.data(), &uid, 4);
-		memcpy(bytes.data() + 4, &vr, 4);
-		memcpy(bytes.data() + 8, &vl, 4);
-	}
-public:
-	Data(const float vr, const float vl) : vr(vr), vl(vl)
-	{
-		to_bytes();
-	}
-	const unsigned char* get_bytes() const
-	{	
-		return bytes.data();
-	}
-};
-
 struct Vec2fT : public cv::Vec2f
 {
 	time_point<high_resolution_clock> time;

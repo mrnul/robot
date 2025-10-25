@@ -3,15 +3,16 @@
 #include "driver/mcpwm_gen.h"
 #include "driver/mcpwm_oper.h"
 #include "driver/mcpwm_cmpr.h"
+#include "driver/gpio.h"
 
 class MCGenerator
 {
 private:
     mcpwm_gen_handle_t gen_handle;
-    int gpio_num;
+    gpio_num_t gpio_num;
 
 public:
-    MCGenerator(int gpio_num, mcpwm_oper_handle_t oper_handle, mcpwm_cmpr_handle_t cmpr_handle)
+    MCGenerator(gpio_num_t gpio_num, mcpwm_oper_handle_t oper_handle, mcpwm_cmpr_handle_t cmpr_handle)
         : gen_handle(nullptr), gpio_num(gpio_num)
     {
         mcpwm_generator_config_t generator_config = {};

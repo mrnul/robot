@@ -4,13 +4,14 @@
 #include "MCOperator.hpp"
 #include "MCComparator.hpp"
 #include "MCGenerator.hpp"
+#include "driver/gpio.h"
 
 class MotorControl
 {
 private:
     int group_id;
-    int gpio_num1;
-    int gpio_num2;
+    gpio_num_t gpio_num1;
+    gpio_num_t gpio_num2;
     uint32_t resolution_hz;
     uint32_t pwm_freq_hz;
 
@@ -21,7 +22,7 @@ private:
     MCGenerator gen2;
 
 public:
-    MotorControl(const int group_id, const uint32_t resolution_hz, const uint32_t pwm_freq_hz, const int gpio_num1, const int gpio_num2)
+    MotorControl(const int group_id, const uint32_t resolution_hz, const uint32_t pwm_freq_hz, const gpio_num_t gpio_num1, const gpio_num_t gpio_num2)
         : group_id(group_id),
           gpio_num1(gpio_num1),
           gpio_num2(gpio_num2),
@@ -37,7 +38,7 @@ public:
         timer.start();
     }
 
-    MotorControl(const int group_id, MCTimer &timer, const int gpio_num1, const int gpio_num2)
+    MotorControl(const int group_id, MCTimer &timer, const gpio_num_t gpio_num1, const gpio_num_t gpio_num2)
         : group_id(group_id),
           gpio_num1(gpio_num1),
           gpio_num2(gpio_num2),

@@ -1,21 +1,29 @@
 #pragma once
 
 #include <WinSock2.h>
+#include <chrono>
 #include <thread>
 #include <mutex>
 #include <map>
 #include <iostream>
 #include <vector>
-#include "robot_socket_client.hpp"
+#include "robot.hpp"
 #include "utils.hpp"
 
 using std::thread;
 using std::mutex;
 using std::map;
+using std::pair;
 using std::shared_ptr;
 using std::vector;
 using std::make_shared;
 using std::lock_guard;
+using std::scoped_lock;
+using std::this_thread::sleep_for;
+using std::chrono::milliseconds;
+using std::atomic;
+using std::for_each;
+using std::erase_if;
 
 
 class Server
@@ -24,20 +32,21 @@ private:
 	SOCKET server;
 
 	thread server_thread;
+	thread clients_rx_thread;
 
-	mutex mutex_map_uid_robot;
-	map<int, shared_ptr<RobotSocketClient>> map_uid_robot;
+	mutex mutex_map_socket_robot;
+	map<SOCKET, shared_ptr<Robot>> map_socket_robot;
 
-	mutex mutex_vec_robot_threads;
-	vector<thread> robot_threads;
+	mutex mutex_uid_robot;
+	map<int, shared_ptr<Robot>> map_uid_robot;
 
-	bool running;
+	atomic<bool> running;
 
-	bool read_ready(const int timeout_ms) const
+	bool server_read_ready(const int timeout_ms) const
 	{
 		WSAPOLLFD fd[1] = {};
 		fd[0].fd = server;
-		fd[0].events = POLLRDNORM;
+		fd[0].events = POLLIN;
 		return WSAPoll(fd, 1, timeout_ms) == 1;
 	}
 
@@ -51,14 +60,14 @@ public:
 		}
 	}
 
-	void start()
+	bool start()
 	{
 		server = socket(AF_INET, SOCK_STREAM, 0);
 
 		if (server == INVALID_SOCKET)
 		{
 			WSACleanup();
-			return;
+			return false;
 		}
 
 		sockaddr_in serverAddress = {};
@@ -69,67 +78,119 @@ public:
 		if (bind(server, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 		{
 			WSACleanup();
-			return;
+			return false;
 		}
 		if (listen(server, 100) == SOCKET_ERROR)
 		{
 			WSACleanup();
-			return;
+			return false;
 		}
 
 		running = true;
 
-		auto _client_rx_lambda = [this](SOCKET socket)
+		auto _clients_rx_lambda = [this]()
 			{
-				cout << "New client thread | Socket: " << socket << endl;
-				shared_ptr<RobotSocketClient> robot = make_shared<RobotSocketClient>(socket);
-				do
+				vector<WSAPOLLFD> pollfds;
+				while (running.load())
 				{
-					int msg_id = robot->read_int();
-					if (msg_id == 1000)
+					if (map_socket_robot.size() == 0)
 					{
-						const int rssi = robot->read_byte();
-						// cout << "Client: " << client->get_uid() << " | rssi: " << rssi << endl;
+						sleep_for(milliseconds(200));
+						continue;
 					}
-					else if (msg_id == 1001)
-					{
-						const int len = robot->read_int();
-						string msg = robot->read_string(len);
-						const int rssi = robot->read_byte();
-						cout << "Robot: " << robot->get_uid() << " | rssi: " << rssi << " | msg: " << msg << endl;
-					}
-					else if (msg_id == 1003)
-					{
-						const int uid = robot->read_int();
-						robot->set_uid(uid);
 
+					pollfds.clear();
+					{
+						lock_guard<mutex> l(mutex_map_socket_robot);
+						for_each(map_socket_robot.begin(), map_socket_robot.end(), [&pollfds](const pair<SOCKET, shared_ptr<Robot>>& pair)
+							{
+								pollfds.push_back({ .fd = pair.first, .events = POLLIN, .revents = 0 });
+							});
+					}
+
+					const int count = WSAPoll(pollfds.data(), (ULONG)pollfds.size(), 2000);
+					if (count < 0)
+					{
+						cout << "Error: " << WSAGetLastError() << endl;
+						continue;
+					}
+
+					
+					lock_guard<mutex> l(mutex_map_socket_robot);
+					for (const WSAPOLLFD& item : pollfds)
+					{
+						cout << "Loop..." << endl;
+
+						if ((item.revents & (POLLERR | POLLHUP)) != 0)
 						{
-							lock_guard<mutex> l(mutex_map_uid_robot);
-							map_uid_robot.emplace(std::pair<int, shared_ptr<RobotSocketClient>>(uid, robot));
+							shared_ptr<Robot> robot = map_socket_robot[item.fd];
+							cout << "Deleting: " << robot->get_uid() << endl;
+							if (robot->get_uid() != 0)
+							{
+								lock_guard<mutex> l(mutex_uid_robot);
+								map_uid_robot.erase(robot->get_uid());
+							}
+							map_socket_robot.erase(item.fd);
+							continue;
+						}
+						if ((item.revents & POLLIN) == 0)
+						{
+							cout << item.revents << endl;
+							continue;
 						}
 
-						cout << "Got uid: " << robot->get_uid() << endl;
+						shared_ptr<Robot> robot = map_socket_robot[item.fd];
+						robot->read_all_available_data();
+
+						optional<int> msg_id = robot->peek_msg_id();
+						if (msg_id == nullopt)
+						{
+							cout << "msg_id == nullopt" << endl;
+							continue;
+						}
+
+						const int32_t message_id = msg_id.value();
+						cout << "\t_clients_rx_lambda - message_id: " << message_id << endl;
+
+						if (message_id == Heartbeat::id)
+						{
+							optional<Heartbeat> message = robot->get_heartbeat();
+							if (message == nullopt)
+								continue;
+
+							cout << "_clients_rx_lambda - rssi: " << (int)message.value().rssi << endl;
+						}
+						else if (message_id == WhoAmI::id)
+						{
+							optional<WhoAmI> message = robot->get_who_am_i();
+							if (message == nullopt)
+								continue;
+							const int32_t uid = message.value().uid;
+							cout << "_clients_rx_lambda - uid: " << uid << endl;
+							lock_guard<mutex> l(mutex_uid_robot);
+							map_uid_robot[uid] = robot;
+						}
+						else if (message_id == TextMessage::id)
+						{
+							optional<TextMessage> message = robot->get_text_message();
+							if (message == nullopt)
+								continue;
+
+							cout << "_clients_rx_lambda - text: " << message.value().msg << endl;
+							cout << "_clients_rx_lambda - rssi: " << (int)message.value().rssi << endl;
+						}
 					}
-
-				} while (robot->is_alive() && running);
-
-				cout << "Client: " << robot->get_uid() << " Goodbye" << endl;
-
-				{
-					lock_guard<mutex> l(mutex_map_uid_robot);
-					map_uid_robot.erase(robot->get_uid());
 				}
-
 			};
 
-		auto _server_lambda = [this, _client_rx_lambda]()
+		auto _server_lambda = [this]()
 			{
 				cout << "Server thread running..." << endl;
 				while (running)
 				{
 					sockaddr addr = {};
 					int sockaddr_len = sizeof(sockaddr);
-					if (!read_ready(1000))
+					if (!server_read_ready(1000))
 						continue;
 
 					SOCKET client_socket = accept(server, &addr, &sockaddr_len);
@@ -140,35 +201,30 @@ public:
 					sockaddr_in* addr_in = reinterpret_cast<sockaddr_in*>(&addr);
 					cout << "New client: " << inet_ntop(AF_INET, &(addr_in->sin_addr), str, 31) << endl;
 
-
-					{
-						lock_guard<mutex> l(mutex_vec_robot_threads);
-						robot_threads.push_back(thread(_client_rx_lambda, client_socket));
-					}
-
+					lock_guard<mutex> l(mutex_map_socket_robot);
+					map_socket_robot[client_socket] = make_shared<Robot>(client_socket);
 				}
 			};
 		server_thread = thread(_server_lambda);
+		clients_rx_thread = thread(_clients_rx_lambda);
+		return true;
 	}
 
 	void stop()
 	{
-		running = false;
+		running.store(false);
 	}
 
 	void wait()
 	{
+		if (server != INVALID_SOCKET) {
+			closesocket(server);
+			server = INVALID_SOCKET;
+		}
 		if (server_thread.joinable())
 			server_thread.join();
-		{
-			lock_guard<mutex> l(mutex_vec_robot_threads);
-			for (thread& t : robot_threads)
-			{
-				if (t.joinable())
-					t.join();
-			}
-			robot_threads.clear();
-		}
+		if (clients_rx_thread.joinable())
+			clients_rx_thread.join();
 		WSACleanup();
 	}
 
@@ -178,25 +234,25 @@ public:
 		wait();
 	}
 
-	bool update_kinematics(Vec2fT pos_c, Vec2fT pos_f, const int client_id)
+	bool update_kinematics(const Vec2fT pos_c, const Vec2fT pos_f, const int robot_id)
 	{
-		lock_guard<mutex> l(mutex_map_uid_robot);
-		const map<int, shared_ptr<RobotSocketClient>>::iterator& it = map_uid_robot.find(client_id);
+		lock_guard<mutex> l(mutex_uid_robot);
+		const map<int, shared_ptr<Robot>>::iterator& it = map_uid_robot.find(robot_id);
 		if (it == map_uid_robot.end())
 			return false;
 
-		it->second->update_position_c(pos_c, 0.9f);
-		it->second->update_position_f(pos_f, 0.9f);
-		it->second->update_theta(1.f);
+		it->second->update_position_c(pos_c, 0.5f);
+		it->second->update_position_f(pos_f, 0.5f);
+		it->second->update_theta(0.5f);
 		return true;
 	}
 
-	bool inform_client(Vec2fT desired_location, const int client_id)
+	int inform_robot(Vec2fT desired_location, const int robot_id)
 	{
-		lock_guard<mutex> lock(mutex_map_uid_robot);
-		const map<int, shared_ptr<RobotSocketClient>>::iterator& it = map_uid_robot.find(client_id);
+		lock_guard<mutex> lock(mutex_uid_robot);
+		const map<int, shared_ptr<Robot>>::iterator& it = map_uid_robot.find(robot_id);
 		if (it == map_uid_robot.end())
-			return false;
+			return -1;
 
 		return it->second->calc_and_send_data(desired_location);
 	}

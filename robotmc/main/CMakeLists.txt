@@ -8,4 +8,5 @@ idf_component_register(
     REQUIRES esp_driver_gpio
     REQUIRES esp_driver_rmt
     INCLUDE_DIRS "./include"
+    INCLUDE_DIRS "../../common"
 )

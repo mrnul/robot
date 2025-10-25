@@ -1,22 +1,23 @@
 #pragma once
 
-#include "MotorControl.hpp"
+#include "MotorControlv2.hpp"
 #include "MCTimer.hpp"
 #include "MutexGuard.hpp"
+#include "driver/gpio.h"
 
-class RobotControl2W
+class RobotControl2Wv2
 {
 private:
     MCTimer timer;
-    MotorControl right;
-    MotorControl left;
+    MotorControlv2 right;
+    MotorControlv2 left;
     SemaphoreHandle_t mutex;
 
 public:
-    RobotControl2W(const uint32_t resolution_hz, const uint32_t pwm_freq_hz, const gpio_num_t gpio_r1, const gpio_num_t gpio_r2, const gpio_num_t gpio_l1, const gpio_num_t gpio_l2)
+    RobotControl2Wv2(const uint32_t resolution_hz, const uint32_t pwm_freq_hz, const gpio_num_t dir_r, const gpio_num_t pwm_r, const gpio_num_t dir_l, const gpio_num_t pwm_l)
         : timer(MCTimer(0, resolution_hz, pwm_freq_hz)),
-          right(MotorControl(0, timer, gpio_r1, gpio_r2)),
-          left(MotorControl(0, timer, gpio_l1, gpio_l2)),
+          right(MotorControlv2(0, timer, dir_r, pwm_r)),
+          left(MotorControlv2(0, timer, dir_l, pwm_l)),
           mutex(xSemaphoreCreateMutex())
     {
         timer.start();
@@ -34,7 +35,7 @@ public:
         left.set_value(vl);
     }
 
-    ~RobotControl2W()
+    ~RobotControl2Wv2()
     {
         if (mutex)
         {

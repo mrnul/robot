@@ -58,6 +58,33 @@ void clientConnectionAndControlTask(void *param)
     }
 }
 
+void test_task(void *param)
+{
+    RobotControl2Wv2 wheels(10000000, 100000, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
+    while(true)
+    {
+        ESP_LOGI(pcTaskGetName(NULL), "set_vr forw");
+        wheels.set_zero();
+        wheels.set_vr(60);
+        delay(2000);
+
+        ESP_LOGI(pcTaskGetName(NULL), "set_vr backw");
+        wheels.set_zero();
+        wheels.set_vr(-60);
+        delay(2000);
+
+        ESP_LOGI(pcTaskGetName(NULL), "set_vl forw");
+        wheels.set_zero();
+        wheels.set_vl(60);
+        delay(2000);
+
+        ESP_LOGI(pcTaskGetName(NULL), "set_vl backw");
+        wheels.set_zero();
+        wheels.set_vl(-60);
+        delay(2000);
+    }
+}
+
 extern "C" void app_main(void)
 {
     {
@@ -66,6 +93,7 @@ extern "C" void app_main(void)
         WiFiStation::init(("Robot " + to_string(robot_id)).c_str(), "Hmm2", "ti pota exei? tipota");
         WiFiStation::startDefaultWiFiConnectionTask();
         xTaskCreate(clientConnectionAndControlTask, "clientC2Task", 1024 * 5, 0, ESP_TASK_TCPIP_PRIO, 0);
+        //xTaskCreate(test_task, "test_task", 1024 * 5, 0, ESP_TASK_TCPIP_PRIO, 0);
         built_in_led.set(255, 0, 0);
         delay(200);
         built_in_led.set(0, 255, 0);

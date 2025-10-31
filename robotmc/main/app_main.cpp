@@ -20,11 +20,13 @@ void clientConnectionAndControlTask(void *param)
     RobotControl2Wv2 wheels(10000000, 100000, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
     while (true)
     {
+        wheels.set_zero();
         delay(1000);
         while (WiFiStation::getGatewayIP())
         {
             if (!client)
             {
+                wheels.set_zero();
                 ESP_LOGI(pcTaskGetName(NULL), "Trying to connect to PC...");
                 const bool result = client.connect(WiFiStation::getGatewayIP(), 8080, 500) == SocketError::OK;
                 if (!result)
@@ -40,14 +42,13 @@ void clientConnectionAndControlTask(void *param)
             Data data = client.readData();
             if (data.vl != noDataC.vl || data.vr != noDataC.vr)
             {
-                ESP_LOGI(pcTaskGetName(NULL), "vr: %f | vl: %f", data.vr, data.vl);
+                ESP_LOGI(pcTaskGetName(NULL), "vr: %ld | vl: %ld", data.vr, data.vl);
                 wheels.set_vr((int)data.vr);
                 wheels.set_vl((int)data.vl);
             }
             else
             {
-                wheels.set_vr(0);
-                wheels.set_vl(0);
+                wheels.set_zero();
             }
             if (client.sendHeartbeatIfMust(Heartbeat(WiFiStation::rssi())))
             {

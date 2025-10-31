@@ -1,11 +1,11 @@
 #pragma once
 
+#include <opencv2/opencv.hpp>
 #include <cmath>
 #include <optional>
 #include <chrono>
 #include "socket_client.hpp"
 #include "utils.hpp"
-#include "structures.hpp"
 #include "messages.hpp"
 #include "control_law.hpp"
 
@@ -21,16 +21,16 @@ class Robot
 private:
 	SocketClient client;
 	int uid;
-	Vec2fT c_position;
-	Vec2fT f_position;
+	cv::Vec3f c_position;
+	cv::Vec3f f_position;
 	float theta;
 public:
 	Robot(SOCKET socket)
 		:
 		client(socket),
 		uid(0),
-		c_position(Vec2fT()),
-		f_position(Vec2fT()),
+		c_position(cv::Vec3f()),
+		f_position(cv::Vec3f()),
 		theta(0.f)
 	{
 	}
@@ -45,36 +45,34 @@ public:
 		this->uid = uid;
 	}
 
-	void update_position_c(const Vec2fT& pos, const float lambda)
+	void update_position_c(const cv::Vec3f& pos, const float lambda)
 	{
 		c_position = pos * lambda + (1.f - lambda) * c_position;
 	}
 
-	void update_position_f(const Vec2fT& pos, const float lambda)
+	void update_position_f(const cv::Vec3f& pos, const float lambda)
 	{
 		f_position = pos * lambda + (1.f - lambda) * f_position;
 	}
 
-	void update_theta(const float lambda)
+	int calc_and_send_data(const cv::Vec3f& desired_location)
 	{
-
-		const Vec2fT cur_direction = f_position - c_position;
-		const float new_theta = atan2f(cur_direction[1], cur_direction[0]);
-
-		theta = new_theta * lambda + (1.f - lambda) * theta;
-	}
-
-	int calc_and_send_data(Vec2fT& desired_location)
-	{
+		const cv::Vec3f direction = f_position - c_position;
 		const float dx = f_position[0] - desired_location[0];
 		const float dy = f_position[1] - desired_location[1];
 
-		const float k = 600.f;
+		const float k = 800.f;
 		const float c = 0.5f;
 
 		cout << "theta: " << rad_to_deg(theta) << endl;
 
-		Data result = control_law(k, theta, c, dx, dy);
+		theta = atan2f(direction[1], direction[0]);
+		const Data result = control_law(k, theta, c, dx, dy);
+
+		cout << "vr: " << result.vr << endl;
+		cout << "vl: " << result.vl << endl;
+		cout << "===================" << endl;
+
 		client.insert_tx_data(result.to_bytes().data(), result.size());
 		return client.send_all_pending_data();
 	}

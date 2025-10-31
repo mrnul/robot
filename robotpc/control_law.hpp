@@ -3,10 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "structures.hpp"
-
-using std::cout;
-using std::endl;
 using std::max;
 using std::sin;
 using std::cos;
@@ -33,11 +29,5 @@ Data control_law(const float k, const float theta, const float c, const float dx
 		vl *= MAX_VALUE;
 	}
 
-	cout << "v:" << v << endl;
-	cout << "w:" << w << endl;
-	cout << "vr:" << vr << endl;
-	cout << "vl:" << vl << endl;
-	cout << "==========" << endl;
-
-	return Data(vr, vl);
+	return Data((int32_t)vr, (int32_t)vl);
 }

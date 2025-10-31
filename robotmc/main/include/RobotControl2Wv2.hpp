@@ -35,6 +35,13 @@ public:
         left.set_value(vl);
     }
 
+    void set_zero() const
+    {
+        MutexGuard lock(mutex, "RobotControl2W::set_zero");
+        right.set_value(0);
+        left.set_value(0);
+    }
+
     ~RobotControl2Wv2()
     {
         if (mutex)

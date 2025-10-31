@@ -24,13 +24,13 @@ public:
       return noDataC;
     }
 
-    float vr = 0.f;
-    float vl = 0.f;
+    int32_t vr = 0;
+    int32_t vl = 0;
 
     memcpy(&vr, data.data() + 4, 4);
     memcpy(&vl, data.data() + 8, 4);
 
-    return Data(vr, vl);
+    return Data(ntohl(vr), ntohl(vl));
   }
 
   bool sendTextMessage(TextMessage msg)

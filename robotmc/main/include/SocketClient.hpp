@@ -4,7 +4,7 @@
 #include <socket.h>
 
 #include "esp_timer.h"
-#include "RecursiveMutexGuard.hpp"
+#include "MutexGuard.hpp"
 
 using std::array;
 using std::string;
@@ -36,7 +36,7 @@ enum class SocketError
 class SocketClient
 {
 private:
-  SemaphoreHandle_t recursive_mutex;
+  SemaphoreHandle_t mutex;
   int64_t last_tx;
   int64_t last_rx;
   int sockfd;
@@ -44,13 +44,13 @@ private:
 
 public:
   SocketClient()
-      : recursive_mutex(xSemaphoreCreateRecursiveMutex()), last_tx(0), last_rx(0), sockfd(-1), connected(false)
+      : mutex(xSemaphoreCreateMutex()), last_tx(0), last_rx(0), sockfd(-1), connected(false)
   {
   }
 
   SocketError connect(in_addr_t ip, const uint16_t port, int32_t timeout_ms)
   {
-    RecursiveMutexGuard lock(recursive_mutex, "SocketClient::connect");
+    MutexGuard lock(mutex, "SocketClient::connect");
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
@@ -127,7 +127,6 @@ public:
 
   void closeConnection()
   {
-    RecursiveMutexGuard lock(recursive_mutex, "SocketClient::closeConnection");
     if (sockfd >= 0)
     {
       close(sockfd);
@@ -136,9 +135,9 @@ public:
     connected = false;
   }
 
-  SocketError readNbytes(uint8_t *bytes, const int count, int32_t timeout_ms = 1000)
+  SocketError readNbytes(uint8_t *bytes, const int count, int32_t timeout_ms = 500)
   {
-    RecursiveMutexGuard lock(recursive_mutex, "SocketClient::readNbytes");
+    MutexGuard lock(mutex, "SocketClient::readNbytes");
 
     if (!isConnected())
     {
@@ -191,7 +190,7 @@ public:
 
   SocketError writeNbytes(const uint8_t *bytes, const int count, int32_t timeout_ms = 1000)
   {
-    RecursiveMutexGuard lock(recursive_mutex, "SocketClient::writeNbytes");
+    MutexGuard lock(mutex, "SocketClient::writeNbytes");
     if (!isConnected())
     {
       return SocketError::ERR_NOT_CONNECTED_WRITE;
@@ -263,7 +262,7 @@ public:
   ~SocketClient()
   {
     closeConnection();
-    vSemaphoreDelete(recursive_mutex);
-    recursive_mutex = nullptr;
+    vSemaphoreDelete(mutex);
+    mutex = nullptr;
   }
 };

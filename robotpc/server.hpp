@@ -150,7 +150,7 @@ public:
 						}
 
 						const int32_t message_id = msg_id.value();
-						cout << "\t_clients_rx_lambda - message_id: " << message_id << endl;
+						// cout << "\t_clients_rx_lambda - message_id: " << message_id << endl;
 
 						if (message_id == Heartbeat::id)
 						{
@@ -158,7 +158,7 @@ public:
 							if (message == nullopt)
 								continue;
 
-							cout << "_clients_rx_lambda - rssi: " << (int)message.value().rssi << endl;
+							// cout << "_clients_rx_lambda - rssi: " << (int)message.value().rssi << endl;
 						}
 						else if (message_id == WhoAmI::id)
 						{
@@ -234,20 +234,19 @@ public:
 		wait();
 	}
 
-	bool update_kinematics(const Vec2fT pos_c, const Vec2fT pos_f, const int robot_id)
+	bool update_kinematics(const cv::Vec3f pos_c, const cv::Vec3f pos_f, const int robot_id)
 	{
 		lock_guard<mutex> l(mutex_uid_robot);
 		const map<int, shared_ptr<Robot>>::iterator& it = map_uid_robot.find(robot_id);
 		if (it == map_uid_robot.end())
 			return false;
 
-		it->second->update_position_c(pos_c, 0.5f);
-		it->second->update_position_f(pos_f, 0.5f);
-		it->second->update_theta(0.5f);
+		it->second->update_position_c(pos_c, 0.8f);
+		it->second->update_position_f(pos_f, 0.8f);
 		return true;
 	}
 
-	int inform_robot(Vec2fT desired_location, const int robot_id)
+	int inform_robot(cv::Vec3f desired_location, const int robot_id)
 	{
 		lock_guard<mutex> lock(mutex_uid_robot);
 		const map<int, shared_ptr<Robot>>::iterator& it = map_uid_robot.find(robot_id);

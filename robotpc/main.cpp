@@ -14,7 +14,7 @@ const int current_resolution = 0;
 const cv::Vec3b blue_low = { 100, 150, 230 };
 const cv::Vec3b blue_high = { 110, 255, 255 };
 
-const cv::Vec3b red_low = { 0, 165, 210 };
+const cv::Vec3b red_low = { 0, 130, 200 };
 const cv::Vec3b red_high = { 10, 255, 255 };
 
 
@@ -36,11 +36,14 @@ int main()
 
 	Locator l(params);
 
-	const cv::Vec3f desired = l.image_plane_xyz_to_real_xyz(l.image_plane_xy_to_image_plane_xzy(cv::Vec2f(0.f, 0.f)));
+	const cv::Vec3f desired = l.image_plane_xyz_to_real_xyz(
+		l.image_plane_uv_to_image_plane_xyz(
+			cv::Vec2f(0.f, 0.f)
+		));
 
 	while (l.again(10))
 	{
-		if (!l.new_frame(false))
+		if (!l.new_frame())
 			continue;
 
 		const cv::Vec3f blue_real = l.locate_mark_and_get(blue_low, blue_high);
@@ -50,11 +53,13 @@ int main()
 
 		if (blue_real == NotFound3fC)
 			continue;
-		
+
 		if (red_real == NotFound3fC)
 			continue;
-		
-		server.update_kinematics(Vec2fT(blue_real[0], blue_real[1]), Vec2fT(red_real[0], red_real[1]), 1);
-		server.inform_robot(Vec2fT(desired[0], desired[1]), 1);
+
+		if (!server.update_kinematics(blue_real, red_real, 1))
+			cout << "Could not update kinematics" << endl;
+		if (!server.inform_robot(desired, 1))
+			cout << "Could not inform robot" << endl;
 	}
 }

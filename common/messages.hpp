@@ -24,7 +24,7 @@ struct Heartbeat
 	{
 		vector<uint8_t> bytes(size());
 
-		const int tmp_id = htonl(id);
+		const int32_t tmp_id = htonl(id);
 		memcpy(bytes.data(), &tmp_id, 4);
 		bytes[4] = (uint8_t)rssi;
 		return bytes;
@@ -51,8 +51,8 @@ struct TextMessage
 	{
 		vector<uint8_t> bytes(size());
 
-		const int tmp_id = htonl(id);
-		const int tmp_length = htonl(text_len);
+		const int32_t tmp_id = htonl(id);
+		const int32_t tmp_length = htonl(text_len);
 		memcpy(bytes.data(), &tmp_id, 4);
 		memcpy(bytes.data() + 4, &tmp_length, 4);
 		memcpy(bytes.data() + 8, msg.c_str(), text_len);
@@ -68,8 +68,8 @@ struct TextMessage
 struct Data
 {
 	static const int32_t id = 1002;
-	float vr;
-	float vl;
+	int32_t vr;
+	int32_t vl;
 
 	int32_t size() const
 	{
@@ -79,17 +79,20 @@ struct Data
 	vector<uint8_t> to_bytes() const
 	{
 		vector<uint8_t> bytes(size());
-		memcpy(bytes.data(), &id, 4);
-		memcpy(bytes.data() + 4, &vr, 4);
-		memcpy(bytes.data() + 8, &vl, 4);
+		const int32_t tmp_id = htonl(id);
+		const int32_t tmp_vr = htonl(vr);
+		const int32_t tmp_vl = htonl(vl);
+		memcpy(bytes.data(), &tmp_id, 4);
+		memcpy(bytes.data() + 4, &tmp_vr, 4);
+		memcpy(bytes.data() + 8, &tmp_vl, 4);
 		return bytes;
 	}
 
-	Data() : vr(0.f), vl(0.f)
+	Data() : vr(0), vl(0)
 	{
 	}
 
-	Data(const float vr, const float vl) : vr(vr), vl(vl)
+	Data(const int32_t vr, const int32_t vl) : vr(vr), vl(vl)
 	{
 	}
 };
@@ -108,8 +111,8 @@ struct WhoAmI
 	{
 		vector<uint8_t> bytes(size());
 
-		const int tmp_id = htonl(id);
-		const int tmp_uid = htonl(uid);
+		const int32_t tmp_id = htonl(id);
+		const int32_t tmp_uid = htonl(uid);
 		memcpy(bytes.data(), &tmp_id, 4);
 		memcpy(bytes.data() + 4, &tmp_uid, 4);
 		return bytes;

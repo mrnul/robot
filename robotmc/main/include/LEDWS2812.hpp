@@ -8,14 +8,14 @@ using std::vector;
 #define WS2812_LED_STRIP_RESOLUTION_HZ 10000000
 
 const rmt_symbol_word_t ws2812_zero = {
-    .duration0 = calculate_duration(0.4, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration0 = calculate_duration(0.4f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level0 = 1,
-    .duration1 = calculate_duration(0.85, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration1 = calculate_duration(0.85f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level1 = 0};
 const rmt_symbol_word_t ws2812_one = {
-    .duration0 = calculate_duration(0.8, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration0 = calculate_duration(0.8f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level0 = 1,
-    .duration1 = calculate_duration(0.45, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration1 = calculate_duration(0.45f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level1 = 0};
 
 class LEDWS2812

@@ -22,7 +22,6 @@ private:
         while (true)
         {
             delay(3000);
-            ESP_LOGI(pcTaskGetName(NULL), "Loop");
             if (WiFiStation::getConnected())
                 continue;
             ESP_LOGI(pcTaskGetName(NULL), "esp_wifi_connect");
@@ -42,12 +41,12 @@ private:
             {
                 WiFiStation::setGatewayIP(0);
                 WiFiStation::setConnected(false);
-                ESP_LOGE(pcTaskGetName(NULL), "Disconnected");
+                ESP_LOGE(pcTaskGetName(NULL), "WIFI_EVENT_STA_DISCONNECTED");
             }
             else if (event_id == WIFI_EVENT_STA_CONNECTED)
             {
                 WiFiStation::setConnected(true);
-                ESP_LOGE(pcTaskGetName(NULL), "Connected");
+                ESP_LOGI(pcTaskGetName(NULL), "WIFI_EVENT_STA_CONNECTED");
             }
         }
         else if (event_base == IP_EVENT)
@@ -56,7 +55,7 @@ private:
             {
                 ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
                 WiFiStation::setGatewayIP(event->ip_info.gw.addr);
-                ESP_LOGI(pcTaskGetName(NULL), "Connected!");
+                ESP_LOGI(pcTaskGetName(NULL), "IP_EVENT_STA_GOT_IP");
             }
         }
     }

@@ -1,20 +1,23 @@
 #pragma once
 
-#define _USE_MATH_DEFINES
-#include <math.h>
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 #include <chrono>
-#include "utils.hpp"
+#include <string>
+#include <vector>
+#include <cmath>
+
+#include "Utils.hpp"
 
 using std::sin;
 using std::cos;
 using std::to_string;
+using std::string;
 using std::chrono::steady_clock;
 using std::chrono::duration;
 using std::chrono::time_point;
+using std::vector;
 
 const cv::Vec2f NotFound2fC(-10000.f, -10000.f);
 const cv::Vec3f NotFound3fC(-10000.f, -10000.f, -10000.f);
@@ -76,13 +79,13 @@ private:
 	cv::Vec2f _pixel_xy;
 	cv::Vec2f _image_plane_uv;
 	cv::Vec3f _image_plane_xyz;
-	cv::Vec3f _real_xyz;
+	cv::Vec3f _world_xyz;
 	vector<vector<cv::Point>> _contours;
 
 public:
 	Locator(const LocatorParams& params)
 	{
-		set_params(params);
+		setParams(params);
 
 		videoCapture.open(0, cv::CAP_ANY);
 		videoCapture.set(cv::CAP_PROP_FRAME_WIDTH, params.width);
@@ -100,14 +103,17 @@ public:
 
 			cv::createTrackbar("Low V", "Helper", nullptr, 255, [](int pos, void* obj) {*(unsigned char*)obj = pos; }, &helper_low[2]);
 			cv::createTrackbar("High V", "Helper", nullptr, 255, [](int pos, void* obj) {*(unsigned char*)obj = pos; }, &helper_high[2]);
+
+			cv::setTrackbarPos("High S", "Helper", 255);
+			cv::setTrackbarPos("High V", "Helper", 255);
 		}
 	}
 
-	void set_params(const LocatorParams& params)
+	void setParams(const LocatorParams& params)
 	{
 		this->params = params;
 
-		theta = (float)deg_to_rad(params.theta_deg);
+		theta = (float)Utils::degToRad(params.theta_deg);
 		cos_theta = std::cos(theta);
 		sin_theta = std::sin(theta);
 		c_xyz = cv::Vec3f(0.f, 0.f, params.zc);
@@ -116,7 +122,7 @@ public:
 		ipy_xyz = cv::Vec3f(0.f, sin_theta, cos_theta);
 	}
 
-	bool new_frame()
+	bool newFrame()
 	{
 		if (!videoCapture.read(_frame))
 			return false;
@@ -124,7 +130,7 @@ public:
 		return true;
 	}
 
-	const cv::Vec2f& locate_pixel_xy(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv)
+	const cv::Vec2f& locatePixelXY(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv)
 	{
 		cv::inRange(_hsv_frame, lower_hsv, upper_hsv, _frame_threshold);
 		cv::findContours(_frame_threshold, _contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
@@ -154,37 +160,37 @@ public:
 		return _pixel_xy;
 	}
 
-	const cv::Vec2f& pixel_xy_to_image_plane_uv(const cv::Vec2f& pixel_xy)
+	const cv::Vec2f& pixelXYToImagePlaneUV(const cv::Vec2f& pixel_xy)
 	{
 		_image_plane_uv[0] = (pixel_xy[0] - params.width * 0.5f) * params.sw;
 		_image_plane_uv[1] = (params.height * 0.5f - pixel_xy[1]) * params.sh;
 		return _image_plane_uv;
 	}
 
-	const cv::Vec3f& image_plane_uv_to_image_plane_xyz(const cv::Vec2f& image_plane_uv)
+	const cv::Vec3f& imagePlaneUVToImagePlaneXYZ(const cv::Vec2f& image_plane_uv)
 	{
 		_image_plane_xyz = pp_xyz + _image_plane_uv[0] * ipx_xyz + _image_plane_uv[1] * ipy_xyz;
 		return _image_plane_xyz;
 	}
 
-	const cv::Vec3f& image_plane_xyz_to_real_xyz(const cv::Vec3f& image_plane_xyz, const float a = 0.f)
+	const cv::Vec3f& imagePlaneXYZToWorldXYZ(const cv::Vec3f& image_plane_xyz, const float a = 0.f)
 	{
 		const float denom = params.d * sin_theta - _image_plane_uv[1] * cos_theta;
 		if (denom <= 0.f)
 		{
-			_real_xyz = NotFound3fC;
+			_world_xyz = NotFound3fC;
 		}
 		else
 		{
 			const float l = (c_xyz[2] - a) / denom;
-			_real_xyz = c_xyz + l * (image_plane_xyz - c_xyz);
+			_world_xyz = c_xyz + l * (image_plane_xyz - c_xyz);
 		}
-		return _real_xyz;
+		return _world_xyz;
 	}
 
-	const cv::Vec3f& locate_mark_and_get(cv::Vec3b lower_hsv, cv::Vec3b upper_hsv, const float a = 0.f)
+	const cv::Vec3f& locateMarkAndGet(cv::Vec3b lower_hsv, cv::Vec3b upper_hsv, const float a = 0.f)
 	{
-		locate_pixel_xy(lower_hsv, upper_hsv);
+		locatePixelXY(lower_hsv, upper_hsv);
 		if (_pixel_xy == NotFound2fC)
 			return NotFound3fC;
 
@@ -192,21 +198,21 @@ public:
 		cv::Mat3b hsvAvgColor(1, 1, lower_hsv * 0.5f + upper_hsv * 0.5f);
 		cv::cvtColor(hsvAvgColor, bgrAvgColor, cv::COLOR_HSV2BGR);
 		const cv::Vec3b& avg_color = bgrAvgColor[0][0];
-		add_circle(_pixel_xy, avg_color);
+		addCircle(_pixel_xy, avg_color);
 		cv::drawContours(_frame, _contours, -1, avg_color, 5);
 
-		pixel_xy_to_image_plane_uv(_pixel_xy);
-		add_text(_pixel_xy, cv::format("uv: (%f, %f)", _image_plane_uv[0], _image_plane_uv[1]), avg_color);
+		pixelXYToImagePlaneUV(_pixel_xy);
+		addText(_pixel_xy, cv::format("uv: (%f, %f)", _image_plane_uv[0], _image_plane_uv[1]), avg_color);
 
-		image_plane_uv_to_image_plane_xyz(_image_plane_uv);
-		add_text(_pixel_xy + cv::Vec2f(0, 30), cv::format("ip: (%f, %f, %f)", _image_plane_xyz[0], _image_plane_xyz[1], _image_plane_xyz[2]), avg_color);
+		imagePlaneUVToImagePlaneXYZ(_image_plane_uv);
+		addText(_pixel_xy + cv::Vec2f(0, 30), cv::format("ip: (%f, %f, %f)", _image_plane_xyz[0], _image_plane_xyz[1], _image_plane_xyz[2]), avg_color);
 
-		image_plane_xyz_to_real_xyz(_image_plane_xyz, a);
-		if (_real_xyz == NotFound3fC)
+		imagePlaneXYZToWorldXYZ(_image_plane_xyz, a);
+		if (_world_xyz == NotFound3fC)
 			return NotFound3fC;
-		add_text(_pixel_xy + cv::Vec2f(0, 60), cv::format(" r: (%f, %f, %f)", _real_xyz[0], _real_xyz[1], _real_xyz[2]), avg_color);
+		addText(_pixel_xy + cv::Vec2f(0, 60), cv::format(" r: (%f, %f, %f)", _world_xyz[0], _world_xyz[1], _world_xyz[2]), avg_color);
 
-		return _real_xyz;
+		return _world_xyz;
 	}
 
 	bool again(const int interval_ms) const
@@ -216,7 +222,7 @@ public:
 
 	// ======================= Visual things =======================
 
-	void add_text(const cv::Point2f xy, const string text, const cv::Scalar color) const
+	void addText(const cv::Point2f xy, const string text, const cv::Scalar color) const
 	{
 		cv::putText(
 			_frame,
@@ -230,7 +236,7 @@ public:
 		);
 	}
 
-	void add_line(const cv::Point2f p1, const cv::Point2f p2, cv::Scalar color) const
+	void addLine(const cv::Point2f p1, const cv::Point2f p2, cv::Scalar color) const
 	{
 		cv::line(
 			_frame,
@@ -240,7 +246,7 @@ public:
 		);
 	}
 
-	void add_circle(const cv::Point2f xy, cv::Scalar color) const
+	void addCircle(const cv::Point2f xy, cv::Scalar color) const
 	{
 		cv::circle(
 			_frame,
@@ -255,25 +261,25 @@ public:
 	{
 		if (params.helper)
 		{
-			locate_mark_and_get(helper_low, helper_high);
+			locateMarkAndGet(helper_low, helper_high);
 		}
 		if (show_fps)
 		{
 			const float seconds = duration<float>(steady_clock::now() - time).count();
 			const float frames_per_second = 1.f / seconds;
 			fps = frames_per_second * LAMBDA_FPS + (1.f - LAMBDA_FPS) * fps;
-			add_text(cv::Point2f(5, 50), "FPS: " + to_string(fps), cv::Scalar(255, 255, 255));
+			addText(cv::Point2f(5, 50), "FPS: " + to_string(fps), cv::Scalar(255, 255, 255));
 			time = steady_clock::now();
 		}
 		if (mark_screen_center)
 		{
-			add_line({ params.width / 2, 0 }, { params.width / 2, params.height }, { 255, 255, 255 });
-			add_line({ 0, params.height / 2 }, { params.width, params.height / 2 }, { 255, 255, 255 });
+			addLine({ params.width / 2, 0 }, { params.width / 2, params.height }, { 255, 255, 255 });
+			addLine({ 0, params.height / 2 }, { params.width, params.height / 2 }, { 255, 255, 255 });
 		}
 		if (mark_horizon)
 		{
 			const float yh = params.height * 0.5f - params.d * sin_theta / (params.sh * cos_theta);
-			add_line({ 0, yh }, { params.width, yh }, { 0, 0, 255 });
+			addLine({ 0, yh }, { params.width, yh }, { 0, 0, 255 });
 		}
 		const float scale = 1280.f / params.width;
 		cv::resize(_frame, _frame, cv::Size(), scale, scale, cv::INTER_LINEAR);

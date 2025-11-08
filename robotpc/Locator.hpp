@@ -24,8 +24,8 @@ const cv::Vec3f NotFound3fC(-10000.f, -10000.f, -10000.f);
 
 struct LocatorParams
 {
-	float width;
-	float height;
+	int width;
+	int height;
 	float zc;
 	float theta_deg;
 	float d;
@@ -126,37 +126,53 @@ public:
 	{
 		if (!videoCapture.read(_frame))
 			return false;
+		params.width = _frame.size().width;
+		params.height = _frame.size().height;
+
+		cv::stackBlur(_frame, _frame, cv::Size(7, 7));
 		cvtColor(_frame, _hsv_frame, cv::COLOR_BGR2HSV);
 		return true;
 	}
 
-	const cv::Vec2f& locatePixelXY(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv)
+	const cv::Vec2f& locatePixelXY(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv, const bool useContours = false)
 	{
 		cv::inRange(_hsv_frame, lower_hsv, upper_hsv, _frame_threshold);
+
 		cv::findContours(_frame_threshold, _contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-		double max_area = 0;
-		int largest_contour = -1;
-		for (int i = 0; i < _contours.size(); i++)
+		cv::Moments m;
+		if(useContours)
 		{
-			const double area = cv::contourArea(_contours[i]);
-			if (area > max_area)
+			double max_area = 0;
+			int largest_contour = -1;
+			for (int i = 0; i < _contours.size(); i++)
 			{
-				max_area = area;
-				largest_contour = i;
+				const double area = cv::contourArea(_contours[i]);
+				if (area > max_area)
+				{
+					max_area = area;
+					largest_contour = i;
+				}
+			}
+			if (largest_contour >= 0)
+			{
+				m = cv::moments(_contours[largest_contour], true);
 			}
 		}
-
-		if (largest_contour >= 0)
+		else
 		{
-			cv::Moments m = cv::moments(_contours[largest_contour], true);
+			m = cv::moments(_frame_threshold, true);
+		}
+
+		if (m.m00 != 0.)
+		{
 			_pixel_xy[0] = float(m.m10 / m.m00);
 			_pixel_xy[1] = float(m.m01 / m.m00);
 		}
-		else {
+		else
+		{
 			_pixel_xy = NotFound2fC;
 		}
-
 		return _pixel_xy;
 	}
 
@@ -188,9 +204,9 @@ public:
 		return _world_xyz;
 	}
 
-	const cv::Vec3f& locateMarkAndGet(cv::Vec3b lower_hsv, cv::Vec3b upper_hsv, const float a = 0.f)
+	const cv::Vec3f& locateMarkAndGet(cv::Vec3b lower_hsv, cv::Vec3b upper_hsv, const float a = 0.f, const bool useContours = false)
 	{
-		locatePixelXY(lower_hsv, upper_hsv);
+		locatePixelXY(lower_hsv, upper_hsv, useContours);
 		if (_pixel_xy == NotFound2fC)
 			return NotFound3fC;
 
@@ -257,32 +273,30 @@ public:
 		);
 	}
 
-	void print(const bool mark_screen_center = true, const bool mark_horizon = true, const bool show_fps = true)
+	void print(const bool mark_screen_center = true, const bool mark_horizon = true)
 	{
 		if (params.helper)
 		{
-			locateMarkAndGet(helper_low, helper_high);
-		}
-		if (show_fps)
-		{
-			const float seconds = duration<float>(steady_clock::now() - time).count();
-			const float frames_per_second = 1.f / seconds;
-			fps = frames_per_second * LAMBDA_FPS + (1.f - LAMBDA_FPS) * fps;
-			addText(cv::Point2f(5, 50), "FPS: " + to_string(fps), cv::Scalar(255, 255, 255));
-			time = steady_clock::now();
+			locateMarkAndGet(helper_low, helper_high, 0.f, true);
 		}
 		if (mark_screen_center)
 		{
-			addLine({ params.width / 2, 0 }, { params.width / 2, params.height }, { 255, 255, 255 });
-			addLine({ 0, params.height / 2 }, { params.width, params.height / 2 }, { 255, 255, 255 });
+			addLine({ params.width / 2.f, 0.f }, { params.width / 2.f, (float)params.height }, { 255, 255, 255 });
+			addLine({ 0.f, params.height / 2.f }, { (float)params.width, params.height / 2.f }, { 255, 255, 255 });
 		}
 		if (mark_horizon)
 		{
 			const float yh = params.height * 0.5f - params.d * sin_theta / (params.sh * cos_theta);
-			addLine({ 0, yh }, { params.width, yh }, { 0, 0, 255 });
+			addLine({ 0.f, yh }, { (float)params.width, yh }, { 0, 0, 255 });
 		}
+		const float seconds = duration<float>(steady_clock::now() - time).count();
+		const float frames_per_second = 1.f / seconds;
+		fps = frames_per_second * LAMBDA_FPS + (1.f - LAMBDA_FPS) * fps;
+		addText(cv::Point2f(5, 50), cv::format("(%d, %d) | FPS: %f", params.width, params.height, fps), cv::Scalar(255, 255, 255));
+
 		const float scale = 1280.f / params.width;
 		cv::resize(_frame, _frame, cv::Size(), scale, scale, cv::INTER_LINEAR);
 		imshow("result", _frame);
+		time = steady_clock::now();
 	}
 };

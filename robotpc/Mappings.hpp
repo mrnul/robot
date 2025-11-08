@@ -10,12 +10,6 @@
 using std::map;
 using std::vector;
 
-const cv::Vec3b blue_low = { 100, 150, 230 };
-const cv::Vec3b blue_high = { 110, 255, 255 };
-
-const cv::Vec3b red_low = { 0, 130, 200 };
-const cv::Vec3b red_high = { 10, 255, 255 };
-
 struct RobotLEDColors
 {
 	// rgb colors
@@ -36,7 +30,7 @@ class Mappings
 {
 private:
 	static inline const map<uint8_t, RobotLEDColors> UID_TO_ROBOT_COLORS_MAP = {
-		{1, {.center = {8, 0, 0, 255}, .front = {3, 0, 30, 0}, .centerLow = { 90, 100, 190 }, .centerHigh = { 130, 255, 255 }, .frontLow = { 160, 60, 120 }, .frontHigh = { 200, 255, 255 }, .valid = true} },
+		{1, {.center = {8, 0, 0, 255}, .front = {3, 150, 255, 0}, .centerLow = { 110, 90, 110 }, .centerHigh = { 120, 255, 255 }, .frontLow = { 20, 5, 160 }, .frontHigh = { 40, 255, 255 }, .valid = true} },
 	};
 
 

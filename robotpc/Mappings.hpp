@@ -33,8 +33,8 @@ class Mappings
 {
 private:
 	static inline const map<uint8_t, RobotLEDColors> UID_TO_ROBOT_COLORS_MAP = {
-		{1, {.center = {8, 0, 0, 255}, .front = {3, 0, 255, 0}, .centerLow = { 110, 40, 160 }, .centerHigh = { 120, 255, 255 }, .frontLow = { 0, 55, 175 }, .frontHigh = { 10, 255, 255 }, .valid = true} },
-		{2, {.center = {8, 0, 0, 255}, .front = {3, 255, 0, 0}, .centerLow = { 110, 40, 160 }, .centerHigh = { 120, 255, 255 }, .frontLow = { 60, 30, 170 }, .frontHigh = { 90, 255, 255 }, .valid = true} },
+		{1, {.center = {8, 255, 0, 255}, .front = {3, 0, 255, 0}, .centerLow = { 130, 20, 145 }, .centerHigh = { 170, 255, 255 }, .frontLow = { 0, 55, 175 }, .frontHigh = { 10, 255, 255 }, .valid = true} },
+		{2, {.center = {8, 255, 0, 255}, .front = {3, 255, 0, 0}, .centerLow = { 130, 20, 145 }, .centerHigh = { 170, 255, 255 }, .frontLow = { 60, 30, 170 }, .frontHigh = { 90, 255, 255 }, .valid = true} },
 	};
 
 

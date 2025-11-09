@@ -24,7 +24,7 @@ int main()
 		.d = 0.002f,
 		.sw = 1.5e-6f,
 		.sh = 1.5e-6f,
-		.helper = true
+		.helper = false
 	};
 
 	Locator l(params);
@@ -54,7 +54,7 @@ int main()
 
 			if (!server.updateKinematics(centerWorld, frontWorld, uid))
 				cout << "Could not update kinematics: " << (int)uid << endl;
-			if (!server.informRobot(desired, uid))
+			if (!server.informRobot(desired + cv::Vec3f(uid == 1? -0.15f : 0.15f, 0.f, 0.f), uid))
 				cout << "Could not inform robot: " << (int)uid << endl;
 		}
 		l.print();

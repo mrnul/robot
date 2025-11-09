@@ -196,7 +196,7 @@ public:
 					largest_contour = i;
 				}
 			}
-			cv::drawContours(_frame, _contours, -1, avgColor, 3);
+			cv::drawContours(_frame, _contours, -1, avgColor, 3, 8, cv::noArray(), INT_MAX, { roi.rect.x, roi.rect.y });
 			if (largest_contour >= 0)
 			{
 				m = cv::moments(_contours[largest_contour], true);

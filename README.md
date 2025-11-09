@@ -32,7 +32,7 @@ In order to locate the robot we are going to recognize the color of the LEDs. On
 
 This way we can have both orientation and location of the robot.
 
-Then we need to find the real coordinates of the robot on the floor.
+Then we need to find the world coordinates of the robot on the floor.
 
 Having the coordinates we can use a control law to make it move as we like.
 
@@ -86,7 +86,7 @@ We need to find the $\lambda$ which makes $z_l=0$, or generally $z_l=a$ with $z_
 
 Turns out that $\lambda=\frac{z_c-a}{-v \cos{t}+ d \sin{t}}$
 
-So the real coordinates on the floor are $(x,y,z)=\lambda(u, d \cos{t}+ v \sin{t}, \frac{a}{\lambda})$
+So the world coordinates on the floor are $(x,y,z)=\lambda(u, d \cos{t}+ v \sin{t}, \frac{a}{\lambda})$
 
 Two constraints arise
 1. $-v \cos{t}+ d \sin{t} \neq 0$
@@ -94,9 +94,13 @@ Two constraints arise
 
 The first one is obvious since a denominator cannot be zero.
 
-The second one arise from the direction of the line.
+The second one comes from the direction of the line.
 
-Here $\lambda<0$ means that the object is behind the camera which is absurd. $\lambda=0$ breaks things. So the only valid values are for $\lambda>0$
+Here $\lambda<0$ means that the object is behind the camera which is absurd. 
+
+$\lambda=0$ is not valid since $z_c > a \geq 0$. 
+The only valid values are for $\lambda>0$.
+> It might actually be $\lambda>1$ since the object must be in front of the image plane.
 
 ## Visual quick sum-up of the transformations needed
 $(p_x, p_y) \rightarrow (u,v) \rightarrow (x_{ip},y_{ip},z_{ip}) \rightarrow (x,y,z)$ 

@@ -299,7 +299,7 @@ public:
 			cv::FONT_HERSHEY_SIMPLEX,
 			0.6,
 			color,
-			2,
+			1,
 			cv::LINE_4
 		);
 	}
@@ -321,7 +321,7 @@ public:
 			xy,
 			8,
 			color,
-			2
+			1
 		);
 	}
 

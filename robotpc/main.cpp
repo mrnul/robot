@@ -20,7 +20,7 @@ int main()
 		.width = resolutions[current_resolution][0],
 		.height = resolutions[current_resolution][1],
 		.zc = 0.72f,
-		.theta_deg = 30.0f,
+		.thetaDeg = 30.0f,
 		.d = 0.002f,
 		.sw = 1.5e-6f,
 		.sh = 1.5e-6f,
@@ -44,22 +44,20 @@ int main()
 		{
 			const RobotLEDColors& colors = Mappings::getColors(uid);
 
-			const cv::Vec3f centerWorld = l.locateMarkAndGet(colors.centerLow, colors.centerHigh);
-			const cv::Vec3f frontWorld = l.locateMarkAndGet(colors.frontLow, colors.frontHigh);
-
-			l.print();
-
-			if (centerWorld == NotFound3fC)
-				continue;
-
+			const cv::Vec3f frontWorld = l.locateMarkAndGet(colors.frontLow, colors.frontHigh, 0.f, true);
 			if (frontWorld == NotFound3fC)
 				continue;
 
+			const cv::Vec3f centerWorld = l.locateMarkAndGet(colors.centerLow, colors.centerHigh, 0.f, true, RegionOfInterest(l.getPixelXY(), 100, 100));
+			if (centerWorld == NotFound3fC)
+				continue;
+
 			if (!server.updateKinematics(centerWorld, frontWorld, uid))
-				cout << "Could not update kinematics" << endl;
+				cout << "Could not update kinematics: " << (int)uid << endl;
 			if (!server.informRobot(desired, uid))
-				cout << "Could not inform robot" << endl;
+				cout << "Could not inform robot: " << (int)uid << endl;
 		}
+		l.print();
 	}
 
 	server.stop();

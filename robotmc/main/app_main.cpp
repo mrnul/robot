@@ -77,7 +77,7 @@ void connectAndControlTask(void *param)
 
         uint32_t msg_id = 0;
         memcpy(&msg_id, buffer.data(), 4);
-        msg_id = htonl(msg_id);
+        msg_id = ntohl(msg_id);
 
         ESP_LOGI(pcTaskGetName(NULL), "Got msg_id: %lu", msg_id);
         if (msg_id == ControlData::id)
@@ -98,9 +98,11 @@ void connectAndControlTask(void *param)
             if (!data)
                 continue;
             ESP_LOGI(pcTaskGetName(NULL), "GPIO NUM: %ld | (%i, %i, %i)", data.value().gpio_num, data.value().r, data.value().g, data.value().b);
-            LEDWS2812 led((gpio_num_t)data.value().gpio_num);
-            led.set(data.value().r, data.value().g, data.value().b);
-            delay(1);
+            {
+                LEDWS2812 led((gpio_num_t)data.value().gpio_num);
+                led.set(data.value().r, data.value().g, data.value().b);
+                delay(1);
+            }
             DIO::setPullMode((gpio_num_t)data.value().gpio_num, GPIO_PULLDOWN_ONLY);
         }
         else if (msg_id == RequestWhoAmI::id)

@@ -27,11 +27,44 @@ struct LocatorParams
 	int width;
 	int height;
 	float zc;
-	float theta_deg;
+	float thetaDeg;
 	float d;
 	float sw;
 	float sh;
 	bool helper;
+};
+
+
+struct RegionOfInterest
+{
+	cv::Rect rect;
+	bool valid;
+
+	RegionOfInterest() : valid(false)
+	{
+	}
+
+	RegionOfInterest(const cv::Vec2f& center, const int width = 0, const int height = 0)
+		: rect(int(center[0] - width / 2.f), int(center[1] - height / 2.f), width, height), valid(width > 0 && height > 0)
+	{
+	}
+
+	void ensureWithinImage(const cv::Mat& img)
+	{
+		if (!valid)
+			return;
+
+		if (rect.x < 0)
+			rect.x = 0;
+		if (rect.y < 0)
+			rect.y = 0;
+
+		if (rect.x + rect.width > img.size().width)
+			rect.x = img.size().width - rect.width;
+
+		if (rect.y + rect.height > img.size().height)
+			rect.y = img.size().height - rect.height;
+	}
 };
 
 
@@ -51,8 +84,8 @@ private:
 	LocatorParams params;
 
 	float theta;
-	float cos_theta;
-	float sin_theta;
+	float cosTheta;
+	float sinTheta;
 
 	cv::Vec3f c_xyz;
 	cv::Vec3f n_xyz;
@@ -80,6 +113,7 @@ private:
 	cv::Vec2f _image_plane_uv;
 	cv::Vec3f _image_plane_xyz;
 	cv::Vec3f _world_xyz;
+	cv::Vec3b avgColor;
 	vector<vector<cv::Point>> _contours;
 
 public:
@@ -113,13 +147,13 @@ public:
 	{
 		this->params = params;
 
-		theta = (float)Utils::degToRad(params.theta_deg);
-		cos_theta = std::cos(theta);
-		sin_theta = std::sin(theta);
+		theta = (float)Utils::degToRad(params.thetaDeg);
+		cosTheta = std::cos(theta);
+		sinTheta = std::sin(theta);
 		c_xyz = cv::Vec3f(0.f, 0.f, params.zc);
-		n_xyz = cv::Vec3f(0.f, cos_theta, -sin_theta);
+		n_xyz = cv::Vec3f(0.f, cosTheta, -sinTheta);
 		pp_xyz = c_xyz + params.d * n_xyz;
-		ipy_xyz = cv::Vec3f(0.f, sin_theta, cos_theta);
+		ipy_xyz = cv::Vec3f(0.f, sinTheta, cosTheta);
 	}
 
 	bool newFrame()
@@ -129,20 +163,28 @@ public:
 		params.width = _frame.size().width;
 		params.height = _frame.size().height;
 
-		cv::stackBlur(_frame, _frame, cv::Size(7, 7));
+		cv::stackBlur(_frame, _frame, cv::Size(5, 5));
 		cvtColor(_frame, _hsv_frame, cv::COLOR_BGR2HSV);
 		return true;
 	}
 
-	const cv::Vec2f& locatePixelXY(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv, const bool useContours = false)
+	const cv::Vec2f& locatePixelXY(const cv::Vec3b lower_hsv, const cv::Vec3b upper_hsv, const bool useContours, RegionOfInterest& roi)
 	{
-		cv::inRange(_hsv_frame, lower_hsv, upper_hsv, _frame_threshold);
-
-		cv::findContours(_frame_threshold, _contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+		if (roi.valid)
+		{
+			roi.ensureWithinImage(_hsv_frame);
+			cv::inRange(_hsv_frame(roi.rect), lower_hsv, upper_hsv, _frame_threshold);
+		}
+		else
+		{
+			cv::inRange(_hsv_frame, lower_hsv, upper_hsv, _frame_threshold);
+		}
 
 		cv::Moments m;
-		if(useContours)
+		if (useContours)
 		{
+			cv::findContours(_frame_threshold, _contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
 			double max_area = 0;
 			int largest_contour = -1;
 			for (int i = 0; i < _contours.size(); i++)
@@ -154,6 +196,7 @@ public:
 					largest_contour = i;
 				}
 			}
+			cv::drawContours(_frame, _contours, -1, avgColor, 3);
 			if (largest_contour >= 0)
 			{
 				m = cv::moments(_contours[largest_contour], true);
@@ -166,8 +209,8 @@ public:
 
 		if (m.m00 != 0.)
 		{
-			_pixel_xy[0] = float(m.m10 / m.m00);
-			_pixel_xy[1] = float(m.m01 / m.m00);
+			_pixel_xy[0] = float(m.m10 / m.m00 + roi.rect.x);
+			_pixel_xy[1] = float(m.m01 / m.m00 + roi.rect.y);
 		}
 		else
 		{
@@ -191,7 +234,7 @@ public:
 
 	const cv::Vec3f& imagePlaneXYZToWorldXYZ(const cv::Vec3f& image_plane_xyz, const float a = 0.f)
 	{
-		const float denom = params.d * sin_theta - _image_plane_uv[1] * cos_theta;
+		const float denom = params.d * sinTheta - _image_plane_uv[1] * cosTheta;
 		if (denom <= 0.f)
 		{
 			_world_xyz = NotFound3fC;
@@ -204,31 +247,40 @@ public:
 		return _world_xyz;
 	}
 
-	const cv::Vec3f& locateMarkAndGet(cv::Vec3b lower_hsv, cv::Vec3b upper_hsv, const float a = 0.f, const bool useContours = false)
+	const cv::Vec3f& locateMarkAndGet(cv::Vec3b lower_hsv, cv::Vec3b upper_hsv, const float a, const bool useContours, RegionOfInterest roi = {})
 	{
-		locatePixelXY(lower_hsv, upper_hsv, useContours);
-		if (_pixel_xy == NotFound2fC)
-			return NotFound3fC;
-
 		cv::Mat3b bgrAvgColor;
 		cv::Mat3b hsvAvgColor(1, 1, lower_hsv * 0.5f + upper_hsv * 0.5f);
 		cv::cvtColor(hsvAvgColor, bgrAvgColor, cv::COLOR_HSV2BGR);
-		const cv::Vec3b& avg_color = bgrAvgColor[0][0];
-		addCircle(_pixel_xy, avg_color);
-		cv::drawContours(_frame, _contours, -1, avg_color, 5);
+		avgColor = bgrAvgColor[0][0];
+
+		locatePixelXY(lower_hsv, upper_hsv, useContours, roi);
+		if (_pixel_xy == NotFound2fC)
+			return NotFound3fC;
+		addCircle(_pixel_xy, avgColor);
 
 		pixelXYToImagePlaneUV(_pixel_xy);
-		addText(_pixel_xy, cv::format("uv: (%f, %f)", _image_plane_uv[0], _image_plane_uv[1]), avg_color);
+		addText(_pixel_xy, cv::format("uv: (%f, %f)", _image_plane_uv[0], _image_plane_uv[1]), avgColor);
 
 		imagePlaneUVToImagePlaneXYZ(_image_plane_uv);
-		addText(_pixel_xy + cv::Vec2f(0, 30), cv::format("ip: (%f, %f, %f)", _image_plane_xyz[0], _image_plane_xyz[1], _image_plane_xyz[2]), avg_color);
+		addText(_pixel_xy + cv::Vec2f(0, 30), cv::format("ip: (%f, %f, %f)", _image_plane_xyz[0], _image_plane_xyz[1], _image_plane_xyz[2]), avgColor);
 
 		imagePlaneXYZToWorldXYZ(_image_plane_xyz, a);
 		if (_world_xyz == NotFound3fC)
 			return NotFound3fC;
-		addText(_pixel_xy + cv::Vec2f(0, 60), cv::format(" r: (%f, %f, %f)", _world_xyz[0], _world_xyz[1], _world_xyz[2]), avg_color);
+		addText(_pixel_xy + cv::Vec2f(0, 60), cv::format(" r: (%f, %f, %f)", _world_xyz[0], _world_xyz[1], _world_xyz[2]), avgColor);
 
 		return _world_xyz;
+	}
+
+	const cv::Vec3f& getWorldXYZ() const
+	{
+		return _world_xyz;
+	}
+
+	const cv::Vec2f& getPixelXY() const
+	{
+		return _pixel_xy;
 	}
 
 	bool again(const int interval_ms) const
@@ -273,22 +325,19 @@ public:
 		);
 	}
 
-	void print(const bool mark_screen_center = true, const bool mark_horizon = true)
+	void print()
 	{
 		if (params.helper)
 		{
-			locateMarkAndGet(helper_low, helper_high, 0.f, true);
+			locateMarkAndGet(helper_low, helper_high, 0.f, true, {});
 		}
-		if (mark_screen_center)
-		{
-			addLine({ params.width / 2.f, 0.f }, { params.width / 2.f, (float)params.height }, { 255, 255, 255 });
-			addLine({ 0.f, params.height / 2.f }, { (float)params.width, params.height / 2.f }, { 255, 255, 255 });
-		}
-		if (mark_horizon)
-		{
-			const float yh = params.height * 0.5f - params.d * sin_theta / (params.sh * cos_theta);
-			addLine({ 0.f, yh }, { (float)params.width, yh }, { 0, 0, 255 });
-		}
+
+		addLine({ params.width / 2.f, 0.f }, { params.width / 2.f, (float)params.height }, { 255, 255, 255 });
+		addLine({ 0.f, params.height / 2.f }, { (float)params.width, params.height / 2.f }, { 255, 255, 255 });
+
+		const float yh = params.height * 0.5f - params.d * sinTheta / (params.sh * cosTheta);
+		addLine({ 0.f, yh }, { (float)params.width, yh }, { 0, 0, 255 });
+
 		const float seconds = duration<float>(steady_clock::now() - time).count();
 		const float frames_per_second = 1.f / seconds;
 		fps = frames_per_second * LAMBDA_FPS + (1.f - LAMBDA_FPS) * fps;

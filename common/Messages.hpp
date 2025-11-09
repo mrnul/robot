@@ -41,12 +41,6 @@ struct Heartbeat
 		if (buffer.size() < msg_size)
 			return nullopt;
 
-		uint32_t tmp_id = 0;
-		memcpy(&tmp_id, buffer.data(), 4);
-		tmp_id = ntohl(tmp_id);
-		if (tmp_id != id)
-			return nullopt;
-
 		return Heartbeat((int8_t)buffer[4], buffer[5]);
 	}
 
@@ -78,12 +72,6 @@ struct TextMessage
 	static optional<TextMessage> fromBuffer(const span<uint8_t> &buffer) noexcept
 	{
 		if (buffer.size() < msg_size)
-			return nullopt;
-
-		uint32_t tmp_id = 0;
-		memcpy(&tmp_id, buffer.data(), 4);
-		tmp_id = ntohl(tmp_id);
-		if (tmp_id != id)
 			return nullopt;
 
 		return TextMessage((char *)buffer.data() + 4, (int8_t)buffer[36], buffer[37]);
@@ -123,12 +111,6 @@ struct ControlData
 		if (buffer.size() < msg_size)
 			return nullopt;
 
-		uint32_t tmp_id = 0;
-		memcpy(&tmp_id, buffer.data(), 4);
-		tmp_id = ntohl(tmp_id);
-		if (tmp_id != id)
-			return nullopt;
-
 		int32_t vr = 0;
 		int32_t vl = 0;
 
@@ -164,12 +146,6 @@ struct WhoAmI
 	static optional<WhoAmI> fromBuffer(const span<uint8_t> &buffer) noexcept
 	{
 		if (buffer.size() < msg_size)
-			return nullopt;
-
-		uint32_t tmp_id = 0;
-		memcpy(&tmp_id, buffer.data(), 4);
-		tmp_id = ntohl(tmp_id);
-		if (tmp_id != id)
 			return nullopt;
 
 		return WhoAmI(buffer[4]);
@@ -211,12 +187,6 @@ struct LEDData
 		if (buffer.size() < msg_size)
 			return nullopt;
 
-		uint32_t tmp_id = 0;
-		memcpy(&tmp_id, buffer.data(), 4);
-		tmp_id = ntohl(tmp_id);
-		if (tmp_id != id)
-			return nullopt;
-
 		uint32_t gpio_num = 0;
 		memcpy(&gpio_num, buffer.data() + 4, 4);
 
@@ -245,12 +215,6 @@ struct RequestWhoAmI
 	static optional<RequestWhoAmI> fromBuffer(const span<uint8_t> &buffer) noexcept
 	{
 		if (buffer.size() < msg_size)
-			return nullopt;
-
-		uint32_t tmp_id = 0;
-		memcpy(&tmp_id, buffer.data(), 4);
-		tmp_id = ntohl(tmp_id);
-		if (tmp_id != id)
 			return nullopt;
 
 		return RequestWhoAmI();

@@ -5,7 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "esp_log.h"
 #include "RobotControl2Wv2.hpp"
-#include "MotorControlv2.hpp"
 #include "WiFiStation.hpp"
 #include "UDPSocket.hpp"
 #include "LEDWS2812.hpp"
@@ -18,7 +17,12 @@ using std::span;
 using std::to_string;
 
 static constexpr uint8_t ROBOT_ID = 1;
+
 static constexpr int BUFFER_SIZE = 1 * 1024;
+static constexpr float HB_INTERVAL = 1.f;
+static constexpr int READ_TIMEOUT = 250;
+static constexpr int MC_CLOCK_RESOLUTION = 10000000;
+static constexpr int MC_PWM_FREQ = 100000;
 
 void connectAndControlTask(void *param)
 {
@@ -31,7 +35,7 @@ void connectAndControlTask(void *param)
     };
 
     array<uint8_t, BUFFER_SIZE> buffer;
-    RobotControl2Wv2 wheels(10000000, 100000, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
+    RobotControl2Wv2 wheels(MC_CLOCK_RESOLUTION, MC_PWM_FREQ, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
     while (true)
     {
         ESP_LOGI(pcTaskGetName(NULL), "Loop");
@@ -56,13 +60,13 @@ void connectAndControlTask(void *param)
             s.write(WhoAmI(ROBOT_ID).toBytes().data(), WhoAmI::msg_size);
         }
 
-        if (s.idleTx() >= 1.f)
+        if (s.idleTx() >= HB_INTERVAL)
         {
             s.write(Heartbeat(WiFiStation::rssi(), ROBOT_ID).toBytes().data(), Heartbeat::msg_size);
             ESP_LOGI(pcTaskGetName(NULL), "HB");
         }
 
-        if (!s.readReady(500))
+        if (!s.readReady(READ_TIMEOUT))
         {
             wheels.set_zero();
             continue;
@@ -89,18 +93,21 @@ void connectAndControlTask(void *param)
                 continue;
             }
             ESP_LOGI(pcTaskGetName(NULL), "vr: %ld | vl: %ld", data.value().vr, data.value().vl);
-            wheels.set_vr((int)data.value().vr);
-            wheels.set_vl((int)data.value().vl);
+            wheels.set_vr(data.value().vr);
+            wheels.set_vl(data.value().vl);
         }
         else if (msg_id == LEDData::id)
         {
             optional<LEDData> data = LEDData::fromBuffer(span<uint8_t>(buffer).subspan(0, incomingData.count));
             if (!data)
                 continue;
-            ESP_LOGI(pcTaskGetName(NULL), "GPIO NUM: %ld | (%i, %i, %i)", data.value().gpio_num, data.value().r, data.value().g, data.value().b);
+            ESP_LOGI(pcTaskGetName(NULL), "GPIO NUM: %ld | (%i, %i, %i) | %i", data.value().gpio_num, data.value().r, data.value().g, data.value().b, data.value().colorOrder);
             {
                 LEDWS2812 led((gpio_num_t)data.value().gpio_num);
-                led.set(data.value().r, data.value().g, data.value().b);
+                if (data.value().colorOrder == ColorOrder::RGB)
+                    led.set(data.value().r, data.value().g, data.value().b);
+                else if (data.value().colorOrder == ColorOrder::GRB)
+                    led.set(data.value().g, data.value().r, data.value().b);
                 delay(1);
             }
             DIO::setPullMode((gpio_num_t)data.value().gpio_num, GPIO_PULLDOWN_ONLY);
@@ -123,7 +130,7 @@ void connectAndControlTask(void *param)
 
 void test_task(void *param)
 {
-    RobotControl2Wv2 wheels(10000000, 100000, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
+    RobotControl2Wv2 wheels(MC_CLOCK_RESOLUTION, MC_PWM_FREQ, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
     while (true)
     {
         ESP_LOGI(pcTaskGetName(NULL), "set_vr forw");

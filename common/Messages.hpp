@@ -156,15 +156,22 @@ struct WhoAmI
 	}
 };
 
+enum ColorOrder : uint8_t
+{
+	RGB = 0,
+	GRB = 1
+};
+
 struct LEDData
 {
-	static constexpr uint32_t msg_size = 11;
+	static constexpr uint32_t msg_size = 12;
 	static constexpr uint32_t id = 1004;
 
 	uint32_t gpio_num;
 	uint8_t r;
 	uint8_t g;
 	uint8_t b;
+	uint8_t colorOrder;
 
 	array<uint8_t, msg_size> toBytes() const noexcept
 	{
@@ -178,6 +185,7 @@ struct LEDData
 		bytes[8] = r;
 		bytes[9] = g;
 		bytes[10] = b;
+		bytes[11] = colorOrder;
 
 		return bytes;
 	}
@@ -190,10 +198,10 @@ struct LEDData
 		uint32_t gpio_num = 0;
 		memcpy(&gpio_num, buffer.data() + 4, 4);
 
-		return LEDData(ntohl(gpio_num), buffer[8], buffer[9], buffer[10]);
+		return LEDData(ntohl(gpio_num), buffer[8], buffer[9], buffer[10], buffer[11]);
 	}
 
-	LEDData(uint32_t gpio_num, uint8_t r, uint8_t g, uint8_t b) : gpio_num(gpio_num), r(r), g(g), b(b)
+	LEDData(uint32_t gpio_num, uint8_t r, uint8_t g, uint8_t b, uint8_t colorOrder) : gpio_num(gpio_num), r(r), g(g), b(b), colorOrder(colorOrder)
 	{
 	}
 };

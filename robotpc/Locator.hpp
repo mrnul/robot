@@ -196,9 +196,9 @@ public:
 					largest_contour = i;
 				}
 			}
-			cv::drawContours(_frame, _contours, -1, avgColor, 3, 8, cv::noArray(), INT_MAX, { roi.rect.x, roi.rect.y });
 			if (largest_contour >= 0)
 			{
+				cv::drawContours(_frame, _contours, -1, avgColor, 3, 8, cv::noArray(), INT_MAX, { roi.rect.x, roi.rect.y });
 				m = cv::moments(_contours[largest_contour], true);
 			}
 		}
@@ -228,7 +228,10 @@ public:
 
 	const cv::Vec3f& imagePlaneUVToImagePlaneXYZ(const cv::Vec2f& image_plane_uv)
 	{
-		_image_plane_xyz = pp_xyz + _image_plane_uv[0] * ipx_xyz + _image_plane_uv[1] * ipy_xyz;
+		_image_plane_xyz[0] = _image_plane_uv[0];
+		_image_plane_xyz[1] = params.d * cosTheta + _image_plane_uv[1] * sinTheta;
+		_image_plane_xyz[2] = params.zc + _image_plane_uv[1] * cosTheta - params.d * sinTheta;
+
 		return _image_plane_xyz;
 	}
 
@@ -238,12 +241,19 @@ public:
 		if (denom <= 0.f)
 		{
 			_world_xyz = NotFound3fC;
+			return _world_xyz;
 		}
-		else
+		const float l = (c_xyz[2] - a) / denom;
+		if (l <= 1.f)
 		{
-			const float l = (c_xyz[2] - a) / denom;
-			_world_xyz = c_xyz + l * (image_plane_xyz - c_xyz);
+			_world_xyz = NotFound3fC;
+			return _world_xyz;
 		}
+
+		_world_xyz[0] = l * _image_plane_uv[0];
+		_world_xyz[1] = l * params.d * cosTheta + _image_plane_uv[1] * sinTheta;
+		_world_xyz[2] = a / l;
+
 		return _world_xyz;
 	}
 

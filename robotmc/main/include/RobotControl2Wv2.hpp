@@ -23,23 +23,23 @@ public:
         timer.start();
     }
 
-    void set_vr(const int vr) const
+    void setVr(const int vr) const
     {
         MutexGuard lock(mutex, "RobotControl2W::set_vr");
-        right.set_value(vr);
+        right.setValue(vr);
     }
 
-    void set_vl(const int vl) const
+    void setVl(const int vl) const
     {
         MutexGuard lock(mutex, "RobotControl2W::set_vl");
-        left.set_value(vl);
+        left.setValue(vl);
     }
 
-    void set_zero() const
+    void setZero() const
     {
         MutexGuard lock(mutex, "RobotControl2W::set_zero");
-        right.set_value(0);
-        left.set_value(0);
+        right.setValue(0);
+        left.setValue(0);
     }
 
     ~RobotControl2Wv2()

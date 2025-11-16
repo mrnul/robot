@@ -27,13 +27,6 @@ static constexpr int MC_PWM_FREQ = 100000;
 void connectAndControlTask(void *param)
 {
     UDPSocket s;
-    if (s.createUDPSocket() != SockErr::ERR_OK)
-    {
-        ESP_LOGE(pcTaskGetName(NULL), "Could not create UDP socket");
-        vTaskDelete(NULL);
-        return;
-    };
-
     array<uint8_t, BUFFER_SIZE> buffer;
     RobotControl2Wv2 wheels(MC_CLOCK_RESOLUTION, MC_PWM_FREQ, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
     while (true)
@@ -41,14 +34,22 @@ void connectAndControlTask(void *param)
         ESP_LOGI(pcTaskGetName(NULL), "Loop");
         if (!WiFiStation::getGatewayIP())
         {
+            s.closeSocket();
+            wheels.setZero();
             delay(1000);
-            wheels.set_zero();
             continue;
         }
 
+        if (s.createUDPSocket() == SockErr::ERR_CREATE)
+        {
+            ESP_LOGE(pcTaskGetName(NULL), "Could not create UDP socket");
+            vTaskDelete(NULL);
+            break;
+        };
+
         if (!s.isConnected())
         {
-            wheels.set_zero();
+            wheels.setZero();
             ESP_LOGI(pcTaskGetName(NULL), "Trying to connect to PC...");
             const bool result = s.connect(WiFiStation::getGatewayIP(), 8080) == SockErr::ERR_OK;
             if (!result)
@@ -68,7 +69,7 @@ void connectAndControlTask(void *param)
 
         if (!s.readReady(READ_TIMEOUT))
         {
-            wheels.set_zero();
+            wheels.setZero();
             continue;
         }
 
@@ -89,12 +90,12 @@ void connectAndControlTask(void *param)
             optional<ControlData> data = ControlData::fromBuffer(span<uint8_t>(buffer).subspan(0, incomingData.count));
             if (!data)
             {
-                wheels.set_zero();
+                wheels.setZero();
                 continue;
             }
             ESP_LOGI(pcTaskGetName(NULL), "vr: %ld | vl: %ld", data.value().vr, data.value().vl);
-            wheels.set_vr(data.value().vr);
-            wheels.set_vl(data.value().vl);
+            wheels.setVr(data.value().vr);
+            wheels.setVl(data.value().vl);
         }
         else if (msg_id == LEDData::id)
         {
@@ -123,7 +124,7 @@ void connectAndControlTask(void *param)
         {
             ESP_LOGE(pcTaskGetName(NULL), "Unknown msg id: %lu | Closing connection", msg_id);
             s.closeSocket();
-            wheels.set_zero();
+            wheels.setZero();
         }
     }
 }
@@ -134,23 +135,23 @@ void test_task(void *param)
     while (true)
     {
         ESP_LOGI(pcTaskGetName(NULL), "set_vr forw");
-        wheels.set_zero();
-        wheels.set_vr(60);
+        wheels.setZero();
+        wheels.setVr(60);
         delay(2000);
 
         ESP_LOGI(pcTaskGetName(NULL), "set_vr backw");
-        wheels.set_zero();
-        wheels.set_vr(-60);
+        wheels.setZero();
+        wheels.setVr(-60);
         delay(2000);
 
         ESP_LOGI(pcTaskGetName(NULL), "set_vl forw");
-        wheels.set_zero();
-        wheels.set_vl(60);
+        wheels.setZero();
+        wheels.setVl(60);
         delay(2000);
 
         ESP_LOGI(pcTaskGetName(NULL), "set_vl backw");
-        wheels.set_zero();
-        wheels.set_vl(-60);
+        wheels.setZero();
+        wheels.setVl(-60);
         delay(2000);
     }
 }

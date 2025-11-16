@@ -75,7 +75,8 @@ Where $w$ is the screen width in pixels, $h$ is the screen height in pixels and 
 ## Image Plane 2D to 3D
 Having the $(u, v)$ coordinates on the image plane we can find the 3D coordinates $ip_{xyz}=(x_{ip},y_{ip},z_{ip})$ using the unit vectors of Image Plane 
 
-$ip_{xyz}=pp + u \cdot ip_x + v \cdot ip_y$
+$ip_{xyz}=pp + u \cdot ip_x + v \cdot ip_y = (u, d \cos{t} + v \sin{t}, zc + v \cos{t} - d \sin{t})$
+
 
 ## Image Plane 3D to Floor coordinates
 The position of the camera $c$ and the point $ip_{xyz}$ define a line of sight with the object.

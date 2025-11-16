@@ -35,7 +35,7 @@ public:
         DIO::reset(gpio_dir);
         DIO::setMode(gpio_dir, GPIO_MODE_OUTPUT);
         DIO::setLevel(gpio_dir, 0);
-        set_value(0);
+        setValue(0);
         timer.start();
     }
 
@@ -51,12 +51,12 @@ public:
         DIO::reset(gpio_dir);
         DIO::setMode(gpio_dir, GPIO_MODE_OUTPUT);
         DIO::setLevel(gpio_dir, 0);
-        set_value(0);
+        setValue(0);
     }
 
-    void set_value(const int value) const
+    void setValue(const int value) const
     {
-        cmpr.set_value(abs(value));
+        cmpr.setValue(abs(value));
         DIO::setLevel(gpio_dir, value > 0);
         if(value == 0)
         {

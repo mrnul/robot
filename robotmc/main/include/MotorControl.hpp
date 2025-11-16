@@ -34,7 +34,7 @@ public:
           gen1(MCGenerator(gpio_num1, oper, cmpr)),
           gen2(MCGenerator(gpio_num2, oper, cmpr))
     {
-        set_value(0);
+        setValue(0);
         timer.start();
     }
 
@@ -50,12 +50,12 @@ public:
           gen1(MCGenerator(gpio_num1, oper, cmpr)),
           gen2(MCGenerator(gpio_num2, oper, cmpr))
     {
-        set_value(0);
+        setValue(0);
     }
 
-    void set_value(const int value) const
+    void setValue(const int value) const
     {
-        cmpr.set_value(abs(value));
+        cmpr.setValue(abs(value));
         if (value > 0)
         {
             gen2.pause();

@@ -1,0 +1,7 @@
+.vs
+**/build/**
+*.log
+*.tlog
+*.obj
+*.txt
+**/x64/**

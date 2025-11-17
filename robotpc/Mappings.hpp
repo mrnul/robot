@@ -28,6 +28,8 @@ struct RobotLEDColors
 	bool valid;
 };
 
+inline const RobotLEDColors noData = RobotLEDColors(LEDData(0, 0, 0, 0, 0), LEDData(0, 0, 0, 0, 0), false);
+
 
 class Mappings
 {
@@ -47,7 +49,7 @@ public:
 		}
 		catch (std::out_of_range&)
 		{
-			return RobotLEDColors(LEDData(0, 0, 0, 0, 0), LEDData(0, 0, 0, 0, 0), false);
+			return noData;
 		}
 	}
 

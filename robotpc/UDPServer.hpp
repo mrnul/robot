@@ -10,6 +10,7 @@
 #include "UDPSocket.hpp"
 #include "UDPRobot.hpp"
 #include "mappings.hpp"
+#include "Point.hpp"
 
 
 using std::atomic;
@@ -170,7 +171,7 @@ public:
 		serverThread = thread(_server_lambda);
 	}
 
-	bool informRobot(cv::Vec3f desiredLocation, const uint8_t uid)
+	bool informRobot(Point3D desiredLocation, const uint8_t uid)
 	{
 		lock_guard<mutex> l(uid_to_robot_mutex);
 		optional<shared_ptr<UDPRobot>> robot = getRobotFromUID(uid);
@@ -182,7 +183,7 @@ public:
 
 	}
 
-	bool updateKinematics(cv::Vec3f c_position, cv::Vec3f f_position, const uint8_t uid)
+	bool updateKinematics(Point3D c_position, Point3D f_position, const uint8_t uid)
 	{
 		lock_guard<mutex> l(uid_to_robot_mutex);
 		optional<shared_ptr<UDPRobot>> robot = getRobotFromUID(uid);

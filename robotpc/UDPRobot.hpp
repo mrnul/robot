@@ -6,6 +6,7 @@
 #include "UDPSocket.hpp"
 #include "Messages.hpp"
 #include "Utils.hpp"
+#include "Point.hpp"
 
 using std::cout;
 using std::endl;
@@ -19,8 +20,8 @@ class UDPRobot
 private:
 	sockaddr_storage addr;
 	int uid;
-	cv::Vec3f c_position;
-	cv::Vec3f f_position;
+	Point3D c_position;
+	Point3D f_position;
 	float theta;
 
 	UDPRobot(const UDPRobot&) = delete;
@@ -30,8 +31,8 @@ public:
 		:
 		addr(addr),
 		uid(uid),
-		c_position(cv::Vec3f()),
-		f_position(cv::Vec3f()),
+		c_position(),
+		f_position(),
 		theta(0.f)
 	{
 	}
@@ -56,14 +57,14 @@ public:
 		return addr;
 	}
 
-	void updatePositionC(const cv::Vec3f& pos, const float lambda)
+	void updatePositionC(const Point3D& pos, const float lambda)
 	{
-		c_position = pos * lambda + (1.f - lambda) * c_position;
+		c_position.smoothUpdate(pos, lambda);
 	}
 
-	void updatePositionF(const cv::Vec3f& pos, const float lambda)
+	void updatePositionF(const Point3D& pos, const float lambda)
 	{
-		f_position = pos * lambda + (1.f - lambda) * f_position;
+		f_position.smoothUpdate(pos, lambda);
 	}
 
 	static ControlData controlLaw(const float k, const float theta, const float c, const float dx, const float dy)
@@ -88,18 +89,18 @@ public:
 		return ControlData((int32_t)vr, (int32_t)vl);
 	}
 
-	ControlData calcControlData(const cv::Vec3f& desiredLocation)
+	ControlData calcControlData(const Point3D& desiredLocation)
 	{
-		const cv::Vec3f direction = f_position - c_position;
-		const float dx = f_position[0] - desiredLocation[0];
-		const float dy = f_position[1] - desiredLocation[1];
+		const Point3D direction = f_position - c_position;
+		const float dx = f_position.x - desiredLocation.x;
+		const float dy = f_position.y - desiredLocation.x;
 
 		const float k = 800.f;
 		const float c = 0.5f;
 
-		cout << "theta: " << Utils::radToDeg(theta) << endl;
+		cout << "theta: " << radToDeg(theta) << endl;
 
-		theta = atan2f(direction[1], direction[0]);
+		theta = atan2f(direction.y, direction.x);
 		const ControlData result = controlLaw(k, theta, c, dx, dy);
 
 		cout << "vr: " << result.vr << endl;

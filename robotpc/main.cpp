@@ -29,9 +29,9 @@ int main()
 
 	Locator l(params);
 
-	const cv::Vec3f desired = l.imagePlaneXYZToWorldXYZ(
+	const Point3D desired = l.imagePlaneXYZToWorldXYZ(
 		l.imagePlaneUVToImagePlaneXYZ(
-			cv::Vec2f(0.f, 0.f)
+			Point2D(0.f, 0.f)
 		));
 
 	const vector<uint8_t> uids = Mappings::getAllUIDs();
@@ -44,17 +44,17 @@ int main()
 		{
 			const RobotLEDColors& colors = Mappings::getColors(uid);
 
-			const cv::Vec3f frontWorld = l.locateMarkAndGet(colors.frontLow, colors.frontHigh, 0.f, true);
+			const Point3D frontWorld = l.locateMarkAndGet(colors.frontLow, colors.frontHigh, 0.f, true);
 			if (frontWorld == NotFound3fC)
 				continue;
 
-			const cv::Vec3f centerWorld = l.locateMarkAndGet(colors.centerLow, colors.centerHigh, 0.f, true, RegionOfInterest(l.getPixelXY(), 100, 100));
+			const Point3D centerWorld = l.locateMarkAndGet(colors.centerLow, colors.centerHigh, 0.f, true, RegionOfInterest(l.getPixelXY(), 100, 100));
 			if (centerWorld == NotFound3fC)
 				continue;
 
 			if (!server.updateKinematics(centerWorld, frontWorld, uid))
 				cout << "Could not update kinematics: " << (int)uid << endl;
-			if (!server.informRobot(desired + cv::Vec3f(uid == 1? -0.15f : 0.15f, 0.f, 0.f), uid))
+			if (!server.informRobot(desired + Point3D(uid == 1? -0.15f : 0.15f, 0.f, 0.f), uid))
 				cout << "Could not inform robot: " << (int)uid << endl;
 		}
 		l.print();

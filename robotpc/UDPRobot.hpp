@@ -31,8 +31,8 @@ public:
 		:
 		addr(addr),
 		uid(uid),
-		c_position(),
-		f_position(),
+		c_position(0.f, 0.f),
+		f_position(0.f, 0.f),
 		theta(0.f)
 	{
 	}
@@ -93,7 +93,7 @@ public:
 	{
 		const Point3D direction = f_position - c_position;
 		const float dx = f_position.x - desiredLocation.x;
-		const float dy = f_position.y - desiredLocation.x;
+		const float dy = f_position.y - desiredLocation.y;
 
 		const float k = 800.f;
 		const float c = 0.5f;

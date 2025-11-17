@@ -155,7 +155,7 @@ public:
 		params.width = _frame.size().width;
 		params.height = _frame.size().height;
 
-		cv::stackBlur(_frame, _frame, cv::Size(5, 5));
+		// cv::stackBlur(_frame, _frame, cv::Size(5, 5));
 		cvtColor(_frame, _hsv_frame, cv::COLOR_BGR2HSV);
 		return true;
 	}

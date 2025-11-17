@@ -96,7 +96,7 @@ private:
 
 		cout << "\tuid: " << (int)uid << endl;
 
-		RobotLEDColors colors = Mappings::getColors(uid);
+		const RobotLEDColors& colors = Mappings::getColors(uid);
 		if (!colors.valid)
 			return;
 

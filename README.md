@@ -1,5 +1,18 @@
 
 # Experimenting with an esp32c6, OpenCV and automatic control systems
+## Repo main folders
+1. common
+    
+    Contains code that is used by both PC and microcontollers
+
+2. robotpc
+
+    Contains code that is used by PC
+
+3. robotmc
+
+    Contains code that is used by microcontrollers
+
 ## Equipment
 ### Set 1
 1. A laptop

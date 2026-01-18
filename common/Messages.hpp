@@ -7,6 +7,8 @@
 #include <span>
 #ifdef _WIN32
 #include <WinSock2.h>
+#elif defined(__unix__)
+#include <sys/socket.h>
 #else
 #include <lwip/def.h>
 #endif

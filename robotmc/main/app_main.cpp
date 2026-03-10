@@ -43,7 +43,6 @@ void connectAndControlTask(void *param)
         if (s.createUDPSocket() == SockErr::ERR_CREATE)
         {
             ESP_LOGE(pcTaskGetName(NULL), "Could not create UDP socket");
-            vTaskDelete(NULL);
             break;
         };
 
@@ -127,6 +126,7 @@ void connectAndControlTask(void *param)
             wheels.setZero();
         }
     }
+    vTaskDelete(NULL);
 }
 
 void test_task(void *param)
@@ -158,7 +158,7 @@ void test_task(void *param)
 
 extern "C" void app_main(void)
 {
-    WiFiStation::init(("Robot " + to_string(ROBOT_ID)).c_str(), "Hmm2", "ti pota exei? tipota");
+    WiFiStation::init(("Robot " + to_string(ROBOT_ID)).c_str(), "PC-L", "ti pota exei? tipota");
     WiFiStation::startDefaultWiFiConnectionTask();
     xTaskCreate(connectAndControlTask, "C2Task", 1024 * 5, 0, ESP_TASK_TCPIP_PRIO, 0);
     // xTaskCreate(test_task, "test_task", 1024 * 5, 0, ESP_TASK_TCPIP_PRIO, 0);

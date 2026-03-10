@@ -5,3 +5,7 @@
 *.obj
 *.txt
 **/x64/**
+
+robotmc/.vscode/
+
+robotpc/main

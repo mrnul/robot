@@ -136,35 +136,33 @@ stateDiagram-v2
     state MainLoop {
         [*] --> CaptureFrame
 
-        CaptureFrame --> ProcessRobots : newFrame()
+        CaptureFrame --> ProcessRobots
 
         state ProcessRobots {
             [*] --> SelectRobot
 
             SelectRobot --> GetRobotColors
 
-            GetRobotColors --> SkipRobot : colors missing (this is a configuration error)
-
             GetRobotColors --> LocateRobotInCapturedFrame
 
-            LocateRobotInCapturedFrame --> SkipRobot : not found
+            LocateRobotInCapturedFrame --> SelectRobot : not found
 
-            SkipRobot --> SelectRobot : next robot
+            LocateRobotInCapturedFrame --> CaltulateAndSendVRVL : found
 
-            LocateRobotInCapturedFrame --> UpdateKinematics : found
-
-            UpdateKinematics --> InformRobot : send VR  and VL
-            InformRobot --> SelectRobot : next robot
+            CaltulateAndSendVRVL --> SelectRobot : next robot
         }
     }
-    MainLoop --> Shutdown : loop exits
+    MainLoop --> Shutdown : loop exits on ESC
 ```
 
 ## High Level mc diagram
 ```mermaid
 stateDiagram-v2
-    WiFiStation --> NetworkTask : gateway & RSSI
-    NetworkTask --> UDPPacketWorker : Incoming UDP Packets / Periodic messages
+    WiFiStation : WiFiStation - Connect to PC Hotspot
+    NetworkTask : NetworkTask - Gets incoming packets and handles periodic messages
+
+    WiFiStation --> NetworkTask : Gateway & RSSI
+    NetworkTask --> UDPPacketWorker : Incoming UDP Packets
 
     UDPPacketWorker --> ControlDataWorker : forward control commands
     UDPPacketWorker --> WhoAmIWorker : handle identity messages

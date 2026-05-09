@@ -16,71 +16,78 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+
 #define INVALID_SOCKET_VALUE -1
 #define SOCKET int
 #define closesocket close
 
 #endif
 
-#include <chrono>
+#include <array>
+#include <span>
+#include <mutex>
 
-using std::chrono::duration;
-using std::chrono::steady_clock;
-using std::chrono::time_point;
+using std::array;
+using std::span;
+using std::mutex;
 
 #include "sockerr.hpp"
 
 using sockerr::SockErr;
 
-struct RCV
+template <int N>
+struct UDPPacket
 {
 	int count;
 	sockaddr_storage from;
+	array<uint8_t, N> buffer;
 
-	RCV(int c, sockaddr_storage f) : count(c), from(f) {}
+	UDPPacket(int c, sockaddr_storage f) : count(c), from(f) {}
+	UDPPacket() : count(0), from({}) {}
 };
 
 class UDPSocket
 {
 private:
 	UDPSocket(const UDPSocket &) = delete;
-	UDPSocket &operator=(const UDPSocket &) = delete;
 
 protected:
-	time_point<steady_clock> last_rx;
-	time_point<steady_clock> last_tx;
 	SOCKET s;
-	bool wsaStartup;
 	bool connected;
+
+#ifdef _WIN32
+	static std::mutex wsaMutex;
+	static bool wsaInitialized;
 
 	void initWsa()
 	{
-#ifdef _WIN32
-		if (!wsaStartup)
+		std::lock_guard<std::mutex> lock(wsaMutex);
+		if (!wsaInitialized)
 		{
 			WSADATA wsaData;
-			wsaStartup = (WSAStartup(MAKEWORD(2, 2), &wsaData) == 0);
+			if (WSAStartup(MAKEWORD(2, 2), &wsaData) == 0)
+				wsaInitialized = true;
 		}
-#endif
 	}
 
 	void cleanupWsa()
 	{
-#ifdef _WIN32
-		if (wsaStartup)
+		std::lock_guard<std::mutex> lock(wsaMutex);
+		if (wsaInitialized)
 		{
 			WSACleanup();
-			wsaStartup = false;
+			wsaInitialized = false;
 		}
-#endif
 	}
+#else
+	void initWsa() {}
+	void cleanupWsa() {}
+#endif
 
 public:
-	UDPSocket() : s(INVALID_SOCKET_VALUE), wsaStartup(false), connected(false)
+	UDPSocket() : s(INVALID_SOCKET_VALUE), connected(false)
 	{
 		initWsa();
-		last_rx = steady_clock::now();
-		last_tx = steady_clock::now();
 	}
 
 	bool fatalSocketError() const
@@ -109,14 +116,15 @@ public:
 	}
 
 public:
+	bool IsSocketValid()
+	{
+		return s != INVALID_SOCKET_VALUE;
+	}
+
 	SockErr createUDPSocket()
 	{
-		if (s != INVALID_SOCKET_VALUE)
-		{
-			return SockErr::ERR_ALREADY_INIT;
-		}
 		s = socket(AF_INET, SOCK_DGRAM, 0);
-		return s != INVALID_SOCKET_VALUE ? SockErr::ERR_OK : SockErr::ERR_CREATE;
+		return IsSocketValid() ? SockErr::ERR_OK : SockErr::ERR_CREATE;
 	}
 
 	SockErr createUDPServerSocket(const int port)
@@ -196,11 +204,8 @@ public:
 	}
 	void closeSocket()
 	{
-		if (s != INVALID_SOCKET_VALUE)
-		{
-			closesocket(s);
-			s = INVALID_SOCKET_VALUE;
-		}
+		closesocket(s);
+		s = INVALID_SOCKET_VALUE;
 		connected = false;
 	}
 
@@ -219,11 +224,13 @@ public:
 		return SockErr::ERR_OK;
 	}
 
-	RCV read(uint8_t *buffer, const int count)
+	template <int N>
+	UDPPacket<N> read()
 	{
+		UDPPacket<N> result;
 		sockaddr_storage from = {};
 		socklen_t len = sizeof(from);
-		const int n = recvfrom(s, (char *)buffer, count, 0, (sockaddr *)&from, &len);
+		const int n = recvfrom(s, result.buffer.data(), N, 0, (sockaddr *)&from, &len);
 		if (n < 0)
 		{
 			if (fatalSocketError())
@@ -231,14 +238,12 @@ public:
 				closeSocket();
 			}
 		}
-		else if (n > 0)
-		{
-			last_rx = steady_clock::now();
-		}
-		return RCV(n, from);
+		result.count = n;
+		result.from = from;
+		return result;
 	}
 
-	SockErr write(uint8_t *data, const int count, sockaddr_storage *to = nullptr)
+	SockErr write(const uint8_t *data, const int count, sockaddr_storage *to = nullptr)
 	{
 		int n = 0;
 		socklen_t addrlen;
@@ -269,18 +274,12 @@ public:
 		if (n != count)
 			return SockErr::ERR_PARTIAL_SEND;
 
-		last_tx = steady_clock::now();
 		return SockErr::ERR_OK;
 	}
 
-	float idleRx()
+	SockErr write(span<const uint8_t> data, sockaddr_storage *to = nullptr)
 	{
-		return duration<float>(steady_clock::now() - last_rx).count();
-	}
-
-	float idleTx()
-	{
-		return duration<float>(steady_clock::now() - last_tx).count();
+		return write(data.data(), data.size(), to);
 	}
 
 	bool isConnected() const

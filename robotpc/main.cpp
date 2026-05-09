@@ -1,5 +1,6 @@
 #include "Locator.hpp"
-#include "UDPServer.hpp"
+#include "UDPRobotServer.hpp"
+#include "UIDManager.hpp"
 
 const int resolutions[5][2] = {
 	{2560, 1440},
@@ -10,55 +11,59 @@ const int resolutions[5][2] = {
 };
 const int current_resolution = 1;
 
-
 int main()
 {
-	UDPServer server;
+	UDPRobotServer server;
 	server.start();
 
 	LocatorParams params = {
+		.camID = 0,
 		.width = resolutions[current_resolution][0],
 		.height = resolutions[current_resolution][1],
 		.zc = 0.72f,
 		.thetaDeg = 30.0f,
-		.d = 0.002f,
+		.d = 0.0002f,
 		.sw = 1.5e-6f,
 		.sh = 1.5e-6f,
-		.helper = false
-	};
+		.helper = false};
 
 	Locator l(params);
 
-	const Point3D desired = l.imagePlaneXYZToWorldXYZ(
-		l.imagePlaneUVToImagePlaneXYZ(
-			Point2D(0.f, 0.f)
-		));
+	const Point2D frameCenter{0.f, 0.f};
+	const Point3D desiredRobotLocation = l.imagePlaneXYZToFloor(l.imagePlaneUVToImagePlaneXYZ(frameCenter)).value();
 
-	const vector<uint8_t> uids = Mappings::getAllUIDs();
 	while (l.again(10))
 	{
 		if (!l.newFrame())
 			continue;
 
-		for (const uint8_t uid : uids)
+		for (uint8_t uid = 0; uid < Config::maxRobotCount(); uid++)
 		{
-			const RobotLEDColors& colors = Mappings::getColors(uid);
-
-			const Point3D frontWorld = l.locateMarkAndGet(colors.frontLow, colors.frontHigh, 0.f, true);
-			if (frontWorld == NotFound3fC)
+			optional<RobotLEDColors> colors = Config::getColors(uid);
+			if (!colors)
 				continue;
 
-			const Point3D centerWorld = l.locateMarkAndGet(colors.centerLow, colors.centerHigh, 0.f, true, RegionOfInterest(l.getPixelXY(), 100, 100));
-			if (centerWorld == NotFound3fC)
+			optional<Point3D> frontWorld = l.locateMarkAndGet(
+				colors.value().frontLow,
+				colors.value().frontHigh,
+				0.f);
+			if (!frontWorld)
 				continue;
 
-			if (!server.updateKinematics(centerWorld, frontWorld, uid))
+			optional<Point3D> centerWorld = l.locateMarkAndGet(
+				colors.value().centerLow,
+				colors.value().centerHigh,
+				0.f,
+				RegionOfInterest(l.getPixelXY(), 100, 100));
+			if (!centerWorld)
+				continue;
+
+			if (!server.updateKinematics(centerWorld.value(), frontWorld.value(), uid))
 				cout << "Could not update kinematics: " << (int)uid << endl;
-			if (!server.informRobot(desired + Point3D(uid == 1? -0.15f : 0.15f, 0.f, 0.f), uid))
+			if (!server.informRobot(desiredRobotLocation, uid))
 				cout << "Could not inform robot: " << (int)uid << endl;
 		}
 		l.print();
 	}
-
 	server.stop();
 }

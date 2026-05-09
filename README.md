@@ -123,3 +123,53 @@ $(p_x, p_y) \rightarrow (u,v) \rightarrow (x_{ip},y_{ip},z_{ip}) \rightarrow (x,
 It is easy to measure $z_c, t$
 
 We need to find appropriate values for $d,s_w,s_h$ which can be tricky
+
+## High Level pc diagram
+```mermaid
+stateDiagram-v2
+
+    [*] --> StartServer
+    StartServer --> ConfigureLocator
+
+    ConfigureLocator --> MainLoop
+
+    state MainLoop {
+        [*] --> CaptureFrame
+
+        CaptureFrame --> ProcessRobots : newFrame()
+
+        state ProcessRobots {
+            [*] --> SelectRobot
+
+            SelectRobot --> GetRobotColors
+
+            GetRobotColors --> SkipRobot : colors missing (this is a configuration error)
+
+            GetRobotColors --> LocateRobotInCapturedFrame
+
+            LocateRobotInCapturedFrame --> SkipRobot : not found
+
+            SkipRobot --> SelectRobot : next robot
+
+            LocateRobotInCapturedFrame --> UpdateKinematics : found
+
+            UpdateKinematics --> InformRobot : send VR  and VL
+            InformRobot --> SelectRobot : next robot
+        }
+    }
+    MainLoop --> Shutdown : loop exits
+```
+
+## High Level mc diagram
+```mermaid
+stateDiagram-v2
+    WiFiStation --> NetworkTask : gateway & RSSI
+    NetworkTask --> UDPPacketWorker : Incoming UDP Packets / Periodic messages
+
+    UDPPacketWorker --> ControlDataWorker : forward control commands
+    UDPPacketWorker --> WhoAmIWorker : handle identity messages
+    UDPPacketWorker --> LEDDataWorker : forward LED commands
+
+    ControlDataWorker --> RobotMotors : update wheel speeds (VR and VL)
+    LEDDataWorker --> LEDs : update LED colors
+```

@@ -1,165 +1,107 @@
-#include <string>
+#include <optional>
+#include <atomic>
 
-#include <array>
-#include <span>
 #include "freertos/FreeRTOS.h"
+#include "Worker.hpp"
 #include "esp_log.h"
-#include "RobotControl2Wv2.hpp"
 #include "WiFiStation.hpp"
 #include "UDPSocket.hpp"
-#include "LEDWS2812.hpp"
-#include "utils.hpp"
-#include "DIO.hpp"
 #include "Messages.hpp"
+#include "callbacks.hpp"
 
-using std::array;
-using std::span;
-using std::to_string;
-
-static constexpr uint8_t ROBOT_ID = 1;
+using std::atomic;
+using std::optional;
 
 static constexpr int BUFFER_SIZE = 1 * 1024;
-static constexpr float HB_INTERVAL = 1.f;
-static constexpr int READ_TIMEOUT = 250;
-static constexpr int MC_CLOCK_RESOLUTION = 10000000;
-static constexpr int MC_PWM_FREQ = 100000;
+static constexpr int READ_TIMEOUT_MS = 200;
+static constexpr int MC_CLOCK_RESOLUTION_HZ = 10000000;
+static constexpr int MC_PWM_FREQ_HZ = 100000;
 
-void connectAndControlTask(void *param)
+static constexpr TickType_t CONNECT_RETRY_MS = 1000;
+static constexpr TickType_t HEARTBEAT_MS = 1000;
+
+struct NetworkTaskExtraData
 {
+    Worker<UDPPacket<200>> *udpPacketWorker;
+    Worker<ControlData> *controlDataWorker;
+
+    atomic<uint8_t> *uid;
+    atomic<bool> *hasUID;
+};
+void networkTask(void *arg)
+{
+    NetworkTaskExtraData *data = (NetworkTaskExtraData *)arg;
     UDPSocket s;
-    array<uint8_t, BUFFER_SIZE> buffer;
-    RobotControl2Wv2 wheels(MC_CLOCK_RESOLUTION, MC_PWM_FREQ, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
+    ControlData zero;
+    TickType_t lastHeartbeat = xTaskGetTickCount();
     while (true)
     {
-        ESP_LOGI(pcTaskGetName(NULL), "Loop");
-        if (!WiFiStation::getGatewayIP())
+        const uint32_t gateway = WiFiStation::getGatewayIP();
+        if (!gateway)
         {
+            data->controlDataWorker->submit(zero);
             s.closeSocket();
-            wheels.setZero();
-            delay(1000);
+            taskDelayMillis(CONNECT_RETRY_MS);
             continue;
         }
-
-        if (s.createUDPSocket() == SockErr::ERR_CREATE)
-        {
-            ESP_LOGE(pcTaskGetName(NULL), "Could not create UDP socket");
-            break;
-        };
 
         if (!s.isConnected())
         {
-            wheels.setZero();
-            ESP_LOGI(pcTaskGetName(NULL), "Trying to connect to PC...");
-            const bool result = s.connect(WiFiStation::getGatewayIP(), 8080) == SockErr::ERR_OK;
-            if (!result)
-            {
-                ESP_LOGE(pcTaskGetName(NULL), "\tConnection failed");
-                continue;
-            }
-            ESP_LOGI(pcTaskGetName(NULL), "Connected to PC!");
-            s.write(WhoAmI(ROBOT_ID).toBytes().data(), WhoAmI::msg_size);
-        }
+            data->controlDataWorker->submit(zero);
+            if (!s.IsSocketValid())
+                s.createUDPSocket();
 
-        if (s.idleTx() >= HB_INTERVAL)
-        {
-            s.write(Heartbeat(WiFiStation::rssi(), ROBOT_ID).toBytes().data(), Heartbeat::msg_size);
-            ESP_LOGI(pcTaskGetName(NULL), "HB");
-        }
-
-        if (!s.readReady(READ_TIMEOUT))
-        {
-            wheels.setZero();
+            s.connect(gateway, 8080);
+            taskDelayMillis(CONNECT_RETRY_MS);
             continue;
         }
 
-        RCV incomingData = s.read(buffer.data(), (int)buffer.size());
-        if (incomingData.count < 4)
+        if (xTaskGetTickCount() - lastHeartbeat > pdMS_TO_TICKS(HEARTBEAT_MS))
         {
-            ESP_LOGE(pcTaskGetName(NULL), "Too few data: %d", incomingData.count);
+            if (data->hasUID->load())
+                s.write(Heartbeat(WiFiStation::rssi(), data->uid->load()).toBytes());
+            else
+                s.write(RequestWhoAmI().toBytes());
+            lastHeartbeat = xTaskGetTickCount();
+        }
+
+        if (!s.readReady(READ_TIMEOUT_MS))
+        {
+            data->controlDataWorker->submit(zero);
             continue;
         }
-
-        uint32_t msg_id = 0;
-        memcpy(&msg_id, buffer.data(), 4);
-        msg_id = ntohl(msg_id);
-
-        ESP_LOGI(pcTaskGetName(NULL), "Got msg_id: %lu", msg_id);
-        if (msg_id == ControlData::id)
-        {
-            optional<ControlData> data = ControlData::fromBuffer(span<uint8_t>(buffer).subspan(0, incomingData.count));
-            if (!data)
-            {
-                wheels.setZero();
-                continue;
-            }
-            ESP_LOGI(pcTaskGetName(NULL), "vr: %ld | vl: %ld", data.value().vr, data.value().vl);
-            wheels.setVr(data.value().vr);
-            wheels.setVl(data.value().vl);
-        }
-        else if (msg_id == LEDData::id)
-        {
-            optional<LEDData> data = LEDData::fromBuffer(span<uint8_t>(buffer).subspan(0, incomingData.count));
-            if (!data)
-                continue;
-            ESP_LOGI(pcTaskGetName(NULL), "GPIO NUM: %ld | (%i, %i, %i) | %i", data.value().gpio_num, data.value().r, data.value().g, data.value().b, data.value().colorOrder);
-            {
-                LEDWS2812 led((gpio_num_t)data.value().gpio_num);
-                if (data.value().colorOrder == ColorOrder::RGB)
-                    led.set(data.value().r, data.value().g, data.value().b);
-                else if (data.value().colorOrder == ColorOrder::GRB)
-                    led.set(data.value().g, data.value().r, data.value().b);
-                delay(1);
-            }
-            DIO::setPullMode((gpio_num_t)data.value().gpio_num, GPIO_PULLDOWN_ONLY);
-        }
-        else if (msg_id == RequestWhoAmI::id)
-        {
-            optional<RequestWhoAmI> data = RequestWhoAmI::fromBuffer(span<uint8_t>(buffer).subspan(0, incomingData.count));
-            if (!data)
-                continue;
-            s.write(WhoAmI(ROBOT_ID).toBytes().data(), WhoAmI::msg_size);
-        }
-        else
-        {
-            ESP_LOGE(pcTaskGetName(NULL), "Unknown msg id: %lu | Closing connection", msg_id);
-            s.closeSocket();
-            wheels.setZero();
-        }
-    }
-    vTaskDelete(NULL);
-}
-
-void test_task(void *param)
-{
-    RobotControl2Wv2 wheels(MC_CLOCK_RESOLUTION, MC_PWM_FREQ, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
-    while (true)
-    {
-        ESP_LOGI(pcTaskGetName(NULL), "set_vr forw");
-        wheels.setZero();
-        wheels.setVr(60);
-        delay(2000);
-
-        ESP_LOGI(pcTaskGetName(NULL), "set_vr backw");
-        wheels.setZero();
-        wheels.setVr(-60);
-        delay(2000);
-
-        ESP_LOGI(pcTaskGetName(NULL), "set_vl forw");
-        wheels.setZero();
-        wheels.setVl(60);
-        delay(2000);
-
-        ESP_LOGI(pcTaskGetName(NULL), "set_vl backw");
-        wheels.setZero();
-        wheels.setVl(-60);
-        delay(2000);
+        UDPPacket<200> packet = s.read<200>();
+        data->udpPacketWorker->submit(packet);
+        taskDelayMillis(10);
     }
 }
+
+atomic<bool> hasUID{false};
+atomic<uint8_t> uid{0};
+RobotControl2Wv2 wheels(MC_CLOCK_RESOLUTION_HZ, MC_PWM_FREQ_HZ, GPIO_NUM_5, GPIO_NUM_4, GPIO_NUM_15, GPIO_NUM_14);
+
+ControlDataCallbackExtraData controlDataCallbackExtraData{.wheelsControl = &wheels};
+Worker<ControlData> controlDataWorker(controlDataCallback, &controlDataCallbackExtraData);
+
+WhoAmICallbackExtraData whoAmICallbackExtraData{.uid = &uid, .hasUID = &hasUID};
+Worker<WhoAmI> whoAmIWorker(whoAmICallback, &whoAmICallbackExtraData);
+
+Worker<LEDData> ledDataWorker(ledDataCallback);
+
+UDPPacketCallbackExtraData udpPacketCallbackExtraData{.controlDataWorker = &controlDataWorker, .whoAmIWorker = &whoAmIWorker, .ledDataWorker = &ledDataWorker};
+Worker<UDPPacket<200>> udpPacketWorker(udpPacketCallback, &udpPacketCallbackExtraData);
+
+NetworkTaskExtraData networkTaskExtraData{.udpPacketWorker = &udpPacketWorker, .controlDataWorker = &controlDataWorker, .uid = &uid, .hasUID = &hasUID};
 
 extern "C" void app_main(void)
 {
-    WiFiStation::init(("Robot " + to_string(ROBOT_ID)).c_str(), "PC-L", "ti pota exei? tipota");
+    WiFiStation::init("esp32", "amd-LOQ-15AHP10", "ti pota exei? tipota");
     WiFiStation::startDefaultWiFiConnectionTask();
-    xTaskCreate(connectAndControlTask, "C2Task", 1024 * 5, 0, ESP_TASK_TCPIP_PRIO, 0);
-    // xTaskCreate(test_task, "test_task", 1024 * 5, 0, ESP_TASK_TCPIP_PRIO, 0);
+
+    xTaskCreate(networkTask, "nTask", 1024 * 5, &networkTaskExtraData, 10, 0);
+
+    controlDataWorker.start("controlDataWorker");
+    whoAmIWorker.start("whoAmIWorker");
+    ledDataWorker.start("ledDataWorker");
+    udpPacketWorker.start("udpPacketWorker");
 }

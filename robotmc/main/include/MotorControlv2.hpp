@@ -4,7 +4,6 @@
 #include "MCOperator.hpp"
 #include "MCComparator.hpp"
 #include "MCGenerator.hpp"
-#include "DIO.hpp"
 
 class MotorControlv2
 {
@@ -32,9 +31,9 @@ public:
           cmpr(MCComparator(oper)),
           gen(MCGenerator(pwm, oper, cmpr))
     {
-        DIO::reset(gpio_dir);
-        DIO::setMode(gpio_dir, GPIO_MODE_OUTPUT);
-        DIO::setLevel(gpio_dir, 0);
+        gpio_reset_pin(gpio_dir);
+        gpio_set_direction(gpio_dir, GPIO_MODE_OUTPUT);
+        gpio_set_level(gpio_dir, 0);
         setValue(0);
         timer.start();
     }
@@ -48,16 +47,16 @@ public:
           cmpr(MCComparator(oper)),
           gen(MCGenerator(pwm, oper, cmpr))
     {
-        DIO::reset(gpio_dir);
-        DIO::setMode(gpio_dir, GPIO_MODE_OUTPUT);
-        DIO::setLevel(gpio_dir, 0);
+        gpio_reset_pin(gpio_dir);
+        gpio_set_direction(gpio_dir, GPIO_MODE_OUTPUT);
+        gpio_set_level(gpio_dir, 0);
         setValue(0);
     }
 
     void setValue(const int value) const
     {
         cmpr.setValue(abs(value));
-        DIO::setLevel(gpio_dir, value > 0);
+        gpio_set_level(gpio_dir, value > 0);
         if(value == 0)
         {
             gen.pause();

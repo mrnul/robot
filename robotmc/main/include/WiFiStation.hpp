@@ -1,27 +1,29 @@
 #pragma once
 
 #include <cstring>
+#include <mutex>
 
 #include "esp_wifi.h"
 #include "esp_task.h"
 #include "driver/temperature_sensor.h"
-
-#include "MutexGuard.hpp"
 #include "utils.hpp"
+
+using std::mutex;
 
 class WiFiStation
 {
 private:
     inline static temperature_sensor_handle_t temp_sensor = nullptr;
     inline static uint32_t gateway_ip = 0;
-    inline static SemaphoreHandle_t mutex = nullptr;
     inline static bool connected = false;
+    inline static mutex m;
 
+private:
     static void defaultWiFiConnectionTask(void *not_used)
     {
         while (true)
         {
-            delay(3000);
+            taskDelayMillis(3000);
             if (WiFiStation::getConnected())
                 continue;
             ESP_LOGI(pcTaskGetName(NULL), "esp_wifi_connect");
@@ -60,15 +62,14 @@ private:
         }
     }
 
-    static void initWiFiSta(const char *station_name, const char *ssid, const char *pass, esp_event_handler_t eventHandler)
+    static void initWiFiSta(const char *stationName, const char *ssid, const char *pass, esp_event_handler_t eventHandler)
     {
         ESP_ERROR_CHECK(esp_netif_init());
         ESP_ERROR_CHECK(esp_event_loop_create_default());
-        ESP_ERROR_CHECK(esp_netif_set_hostname(esp_netif_create_default_wifi_sta(), station_name));
+        ESP_ERROR_CHECK(esp_netif_set_hostname(esp_netif_create_default_wifi_sta(), stationName));
 
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-        
 
         ESP_ERROR_CHECK(
             esp_event_handler_instance_register(
@@ -109,10 +110,9 @@ private:
     }
 
 public:
-    static void init(const char *station_name, const char *ssid, const char *pass, esp_event_handler_t eventHandler = WiFiStation::defaultEventHandler)
+    static void init(const char *stationName, const char *ssid, const char *pass, esp_event_handler_t eventHandler = WiFiStation::defaultEventHandler)
     {
-        mutex = xSemaphoreCreateMutex();
-        WiFiStation::initWiFiSta(station_name, ssid, pass, eventHandler);
+        WiFiStation::initWiFiSta(stationName, ssid, pass, eventHandler);
         WiFiStation::initTemperatureSensor();
     }
 
@@ -138,25 +138,25 @@ public:
 
     static void setGatewayIP(const uint32_t ip)
     {
-        MutexGuard lock(mutex, "WiFiStation::setGatewayIP");
+        std::lock_guard<mutex> lock(m);
         gateway_ip = ip;
     }
 
     static uint32_t getGatewayIP()
     {
-        MutexGuard lock(mutex, "WiFiStation::getGatewayIP");
+        std::lock_guard<mutex> lock(m);
         return gateway_ip;
     }
 
     static void setConnected(const bool val)
     {
-        MutexGuard lock(mutex, "WiFiStation::setConnected");
+        std::lock_guard<mutex> lock(m);
         connected = val;
     }
 
     static bool getConnected()
     {
-        MutexGuard lock(mutex, "WiFiStation::setConnected");
+        std::lock_guard<mutex> lock(m);
         return connected;
     }
 };

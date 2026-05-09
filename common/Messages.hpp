@@ -5,6 +5,9 @@
 #include <optional>
 #include <algorithm>
 #include <span>
+#include <array>
+#include <cstring>
+
 #ifdef _WIN32
 #include <WinSock2.h>
 #elif defined(__unix__)
@@ -22,15 +25,15 @@ using std::vector;
 
 struct Heartbeat
 {
-	static constexpr uint32_t msg_size = 6;
+	static constexpr uint32_t msgSize = 6;
 	static constexpr uint32_t id = 1000;
 
 	int8_t rssi;
 	uint8_t uid;
 
-	array<uint8_t, msg_size> toBytes() const noexcept
+	array<uint8_t, msgSize> toBytes() const
 	{
-		array<uint8_t, msg_size> bytes = {};
+		array<uint8_t, msgSize> bytes = {};
 		const uint32_t tmp_id = htonl(id);
 		memcpy(bytes.data(), &tmp_id, 4);
 		bytes[4] = (uint8_t)rssi;
@@ -38,9 +41,9 @@ struct Heartbeat
 		return bytes;
 	}
 
-	static optional<Heartbeat> fromBuffer(const span<uint8_t> &buffer) noexcept
+	static optional<Heartbeat> fromBuffer(const span<uint8_t> &buffer)
 	{
-		if (buffer.size() < msg_size)
+		if (buffer.size() < msgSize)
 			return nullopt;
 
 		return Heartbeat((int8_t)buffer[4], buffer[5]);
@@ -53,15 +56,15 @@ struct Heartbeat
 
 struct TextMessage
 {
-	static constexpr uint32_t msg_size = 38;
+	static constexpr uint32_t msgSize = 38;
 	static constexpr uint32_t id = 1001;
 	char message[32];
 	int8_t rssi;
 	uint8_t uid;
 
-	array<uint8_t, msg_size> toBytes() const noexcept
+	array<uint8_t, msgSize> toBytes() const
 	{
-		array<uint8_t, msg_size> bytes = {};
+		array<uint8_t, msgSize> bytes = {};
 
 		const uint32_t tmp_id = htonl(id);
 		memcpy(bytes.data(), &tmp_id, 4);
@@ -71,9 +74,9 @@ struct TextMessage
 		return bytes;
 	}
 
-	static optional<TextMessage> fromBuffer(const span<uint8_t> &buffer) noexcept
+	static optional<TextMessage> fromBuffer(const span<uint8_t> &buffer)
 	{
-		if (buffer.size() < msg_size)
+		if (buffer.size() < msgSize)
 			return nullopt;
 
 		return TextMessage((char *)buffer.data() + 4, (int8_t)buffer[36], buffer[37]);
@@ -89,14 +92,14 @@ struct TextMessage
 
 struct ControlData
 {
-	static constexpr uint32_t msg_size = 12;
+	static constexpr uint32_t msgSize = 12;
 	static constexpr uint32_t id = 1002;
 	int32_t vr;
 	int32_t vl;
 
-	array<uint8_t, msg_size> toBytes() const noexcept
+	array<uint8_t, msgSize> toBytes() const
 	{
-		array<uint8_t, msg_size> bytes = {};
+		array<uint8_t, msgSize> bytes = {};
 
 		const uint32_t tmp_id = htonl(id);
 		const int32_t tmp_vr = htonl(vr);
@@ -108,9 +111,9 @@ struct ControlData
 		return bytes;
 	}
 
-	static optional<ControlData> fromBuffer(const span<uint8_t> &buffer) noexcept
+	static optional<ControlData> fromBuffer(const span<uint8_t> &buffer)
 	{
-		if (buffer.size() < msg_size)
+		if (buffer.size() < msgSize)
 			return nullopt;
 
 		int32_t vr = 0;
@@ -122,20 +125,20 @@ struct ControlData
 		return ControlData(ntohl(vr), ntohl(vl));
 	}
 
-	ControlData(const int32_t vr, const int32_t vl) : vr(vr), vl(vl)
+	ControlData(const int32_t vr = 0, const int32_t vl = 0) : vr(vr), vl(vl)
 	{
 	}
 };
 
 struct WhoAmI
 {
-	static constexpr uint32_t msg_size = 5;
+	static constexpr uint32_t msgSize = 5;
 	static constexpr uint32_t id = 1003;
 	uint8_t uid;
 
-	array<uint8_t, msg_size> toBytes() const noexcept
+	array<uint8_t, msgSize> toBytes() const
 	{
-		array<uint8_t, msg_size> bytes = {};
+		array<uint8_t, msgSize> bytes = {};
 
 		const uint32_t tmp_id = htonl(id);
 		memcpy(bytes.data(), &tmp_id, 4);
@@ -145,15 +148,15 @@ struct WhoAmI
 		return bytes;
 	}
 
-	static optional<WhoAmI> fromBuffer(const span<uint8_t> &buffer) noexcept
+	static optional<WhoAmI> fromBuffer(const span<uint8_t> &buffer)
 	{
-		if (buffer.size() < msg_size)
+		if (buffer.size() < msgSize)
 			return nullopt;
 
 		return WhoAmI(buffer[4]);
 	}
 
-	WhoAmI(const uint8_t uid) : uid(uid)
+	WhoAmI(const uint8_t uid = 0) : uid(uid)
 	{
 	}
 };
@@ -166,7 +169,7 @@ enum ColorOrder : uint8_t
 
 struct LEDData
 {
-	static constexpr uint32_t msg_size = 12;
+	static constexpr uint32_t msgSize = 12;
 	static constexpr uint32_t id = 1004;
 
 	uint32_t gpio_num;
@@ -175,9 +178,9 @@ struct LEDData
 	uint8_t b;
 	uint8_t colorOrder;
 
-	array<uint8_t, msg_size> toBytes() const noexcept
+	array<uint8_t, msgSize> toBytes() const
 	{
-		array<uint8_t, msg_size> bytes = {};
+		array<uint8_t, msgSize> bytes = {};
 
 		const uint32_t tmp_id = htonl(id);
 		const uint32_t tmp_gpio_num = htonl(gpio_num);
@@ -192,9 +195,9 @@ struct LEDData
 		return bytes;
 	}
 
-	static optional<LEDData> fromBuffer(const span<uint8_t> &buffer) noexcept
+	static optional<LEDData> fromBuffer(const span<uint8_t> &buffer)
 	{
-		if (buffer.size() < msg_size)
+		if (buffer.size() < msgSize)
 			return nullopt;
 
 		uint32_t gpio_num = 0;
@@ -206,25 +209,29 @@ struct LEDData
 	LEDData(uint32_t gpio_num, uint8_t r, uint8_t g, uint8_t b, uint8_t colorOrder) : gpio_num(gpio_num), r(r), g(g), b(b), colorOrder(colorOrder)
 	{
 	}
+
+	LEDData()
+	{
+	}
 };
 
 struct RequestWhoAmI
 {
-	static constexpr uint32_t msg_size = 4;
+	static constexpr uint32_t msgSize = 4;
 	static constexpr uint32_t id = 1005;
 
-	array<uint8_t, msg_size> toBytes() const noexcept
+	array<uint8_t, msgSize> toBytes() const
 	{
-		array<uint8_t, msg_size> bytes = {};
+		array<uint8_t, msgSize> bytes = {};
 
 		const uint32_t tmp_id = htonl(id);
 		memcpy(bytes.data(), &tmp_id, 4);
 		return bytes;
 	}
 
-	static optional<RequestWhoAmI> fromBuffer(const span<uint8_t> &buffer) noexcept
+	static optional<RequestWhoAmI> fromBuffer(const span<uint8_t> &buffer)
 	{
-		if (buffer.size() < msg_size)
+		if (buffer.size() < msgSize)
 			return nullopt;
 
 		return RequestWhoAmI();

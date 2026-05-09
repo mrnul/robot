@@ -1,21 +1,22 @@
 #include <vector>
+#include <mutex>
 
 #include "driver/rmt_tx.h"
-#include "MutexGuard.hpp"
 
 using std::vector;
+using std::mutex;
 
 #define WS2812_LED_STRIP_RESOLUTION_HZ 10000000
 
 const rmt_symbol_word_t ws2812_zero = {
-    .duration0 = calculate_duration(0.4f, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration0 = calculateDuration(0.4f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level0 = 1,
-    .duration1 = calculate_duration(0.85f, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration1 = calculateDuration(0.85f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level1 = 0};
 const rmt_symbol_word_t ws2812_one = {
-    .duration0 = calculate_duration(0.8f, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration0 = calculateDuration(0.8f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level0 = 1,
-    .duration1 = calculate_duration(0.45f, WS2812_LED_STRIP_RESOLUTION_HZ),
+    .duration1 = calculateDuration(0.45f, WS2812_LED_STRIP_RESOLUTION_HZ),
     .level1 = 0};
 
 class LEDWS2812
@@ -26,12 +27,12 @@ private:
     rmt_transmit_config_t tx_config;
     rmt_encoder_handle_t simple_encoder;
     rmt_channel_handle_t led_chan;
-    SemaphoreHandle_t mutex;
+    mutex m;
 
 private:
     void clean()
     {
-        MutexGuard lock(mutex, "LEDWS2812:~LEDWS2812");
+        std::lock_guard<mutex> lock(m);
         ESP_ERROR_CHECK(rmt_disable(led_chan));
         ESP_ERROR_CHECK(rmt_del_encoder(simple_encoder));
         ESP_ERROR_CHECK(rmt_del_channel(led_chan));
@@ -48,8 +49,7 @@ public:
           led_strip_payload(vector<uint8_t>(num_of_leds * 3)),
           tx_config(),
           simple_encoder(nullptr),
-          led_chan(nullptr),
-          mutex(xSemaphoreCreateMutex())
+          led_chan(nullptr)
     {
         rmt_tx_channel_config_t tx_chan_config = {
             .gpio_num = gpio_num,
@@ -82,7 +82,7 @@ public:
         }
 
         {
-            MutexGuard lock(mutex, "LEDWS2812:set");
+            std::lock_guard<mutex> lock(m);
             ESP_ERROR_CHECK(rmt_transmit(led_chan, simple_encoder, (const void *)led_strip_payload.data(), sizeof(led_strip_payload), &tx_config));
             ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, -1));
         }
@@ -91,7 +91,5 @@ public:
     ~LEDWS2812()
     {
         clean();
-        vSemaphoreDelete(mutex);
-        mutex = nullptr;
     }
 };

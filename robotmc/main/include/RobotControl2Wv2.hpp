@@ -1,9 +1,12 @@
 #pragma once
 
+#include <mutex>
+
 #include "MotorControlv2.hpp"
 #include "MCTimer.hpp"
-#include "MutexGuard.hpp"
 #include "driver/gpio.h"
+
+using std::mutex;
 
 class RobotControl2Wv2
 {
@@ -11,43 +14,33 @@ private:
     MCTimer timer;
     MotorControlv2 right;
     MotorControlv2 left;
-    SemaphoreHandle_t mutex;
+    mutex m;
 
 public:
     RobotControl2Wv2(const uint32_t resolution_hz, const uint32_t pwm_freq_hz, const gpio_num_t dir_r, const gpio_num_t pwm_r, const gpio_num_t dir_l, const gpio_num_t pwm_l)
         : timer(MCTimer(0, resolution_hz, pwm_freq_hz)),
           right(MotorControlv2(0, timer, dir_r, pwm_r)),
-          left(MotorControlv2(0, timer, dir_l, pwm_l)),
-          mutex(xSemaphoreCreateMutex())
+          left(MotorControlv2(0, timer, dir_l, pwm_l))
     {
         timer.start();
     }
 
-    void setVr(const int vr) const
+    void setVr(const int vr)
     {
-        MutexGuard lock(mutex, "RobotControl2W::set_vr");
+        std::lock_guard<mutex> lock(m);
         right.setValue(vr);
     }
 
-    void setVl(const int vl) const
+    void setVl(const int vl)
     {
-        MutexGuard lock(mutex, "RobotControl2W::set_vl");
+        std::lock_guard<mutex> lock(m);
         left.setValue(vl);
     }
 
-    void setZero() const
+    void setZero()
     {
-        MutexGuard lock(mutex, "RobotControl2W::set_zero");
+        std::lock_guard<mutex> lock(m);
         right.setValue(0);
         left.setValue(0);
-    }
-
-    ~RobotControl2Wv2()
-    {
-        if (mutex)
-        {
-            vSemaphoreDelete(mutex);
-            mutex = nullptr;
-        }
     }
 };

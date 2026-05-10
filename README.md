@@ -98,23 +98,17 @@ The line equation is $l=(x_l,y_l,z_l)=c+\lambda(ip_{xyz}-c)$
 
 We need to find the $\lambda$ which makes $z_l=0$, or generally $z_l=a$ with $z_c > a \geq 0$
 
-Turns out that $\lambda=\frac{z_c-a}{-v \cos{t}+ d \sin{t}}$
+Turns out that $\lambda=\frac{z_c-a}{z_c-ip_{z}}$
 
 So the world coordinates on the floor are $(x,y,z)=\lambda(u, d \cos{t}+ v \sin{t}, \frac{a}{\lambda})$
 
 Two constraints arise
 1. $-v \cos{t}+ d \sin{t} \neq 0$
-2. $\lambda>0$
+2. $\lambda>1$
 
 The first one is obvious since a denominator cannot be zero.
 
-The second one comes from the direction of the line.
-
-Here $\lambda<0$ means that the object is behind the camera which is absurd. 
-
-$\lambda=0$ is not valid since $z_c > a \geq 0$. 
-The only valid values are for $\lambda>0$.
-> It might actually be $\lambda>1$ since the object must be in front of the image plane.
+The second one comes from the direction of the line since the object must be in front of the image plane.
 
 ## Visual quick sum-up of the transformations needed
 $(p_x, p_y) \rightarrow (u,v) \rightarrow (x_{ip},y_{ip},z_{ip}) \rightarrow (x,y,z)$ 
@@ -170,4 +164,21 @@ stateDiagram-v2
 
     ControlDataWorker --> RobotMotors : update wheel speeds (VR and VL)
     LEDDataWorker --> LEDs : update LED colors
+```
+
+## High Level communication protocol
+```mermaid
+sequenceDiagram
+    loop once per second until a uid is assigned
+        MC->>PC: RequestWhoAmI (identity request)
+    end
+    PC->>MC: WhoAmI (pc assigns a uid to the robot)
+    PC->>MC: LEDData (pc send center and front led colors)
+    loop once per second
+        MC->>PC: Heartbat
+    end
+    loop inside PC main loop
+        PC->>MC: ControlData (VR and VL values)
+    end
+
 ```
